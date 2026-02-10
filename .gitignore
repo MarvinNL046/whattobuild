@@ -11,3 +11,6 @@ logs/
 .DS_Store
 .vercel
 .claude/settings.local.json
+
+# clerk configuration (can include secrets)
+/.clerk/

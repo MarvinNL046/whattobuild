@@ -37,9 +37,9 @@ WhatToBuild is a micro-SaaS tool that discovers pain points and product opportun
 | **UI** | shadcn/ui + Tailwind CSS |
 | **Auth** | Clerk |
 | **Payments** | Stripe (credit-based) |
-| **Scraping** | BrightData + Jina.ai |
-| **AI Analysis** | Claude Haiku 4.5 (swappable interface) |
-| **Search Volume** | SerpAPI |
+| **Scraping** | BrightData SERP API + Jina.ai |
+| **AI Analysis** | Gemini Flash (free, swappable interface) |
+| **Search Volume** | BrightData SERP (SerpAPI optional fallback) |
 | **Hosting** | Vercel |
 
 ## Development Commands
@@ -140,7 +140,7 @@ See `.env.local` for Linear config. App env vars:
 - `NEXT_PUBLIC_CONVEX_URL` - Convex deployment URL
 - `CONVEX_DEPLOYMENT` - Convex deployment ID
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` - Payments
-- `BRIGHTDATA_*` - Scraping API credentials
+- `BRIGHTDATA_API_TOKEN` / `BRIGHTDATA_ZONE` - BrightData SERP API
 - `JINA_API_KEY` - Content extraction
-- `ANTHROPIC_API_KEY` - Claude Haiku for AI analysis
-- `SERPAPI_KEY` - Search volume data
+- `GEMINI_API_KEY` / `GEMINI_MODEL` - Gemini Flash for AI analysis (free)
+- `SERPAPI_KEY` - Search volume (optional, BrightData is primary)

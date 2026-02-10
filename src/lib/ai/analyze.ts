@@ -19,50 +19,52 @@ interface AIProvider {
   analyze(prompt: string): Promise<string>;
 }
 
-class ClaudeHaikuProvider implements AIProvider {
+class GeminiFlashProvider implements AIProvider {
   private apiKey: string;
+  private model: string;
 
   constructor() {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) throw new Error("Missing ANTHROPIC_API_KEY");
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("Missing GEMINI_API_KEY");
     this.apiKey = key;
+    this.model = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
   }
 
   async analyze(prompt: string): Promise<string> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.3,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${error}`);
+      throw new Error(`Gemini API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json();
-    return data.content[0].text;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error("Gemini returned empty response");
+    }
+
+    return text;
   }
 }
 
 // Factory for swappable providers
 function getProvider(): AIProvider {
-  const provider = process.env.AI_PROVIDER ?? "claude";
-
-  switch (provider) {
-    case "claude":
-      return new ClaudeHaikuProvider();
-    default:
-      return new ClaudeHaikuProvider();
-  }
+  return new GeminiFlashProvider();
 }
 
 export async function analyzePainPoints(
@@ -92,7 +94,9 @@ Analyze this content and identify the top pain points. For each pain point:
 5. Extract 2-3 direct quotes from the content that illustrate the pain point
 6. List relevant keywords for search volume research
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
+Return the top 5-10 most significant pain points, ordered by frequency (highest first).
+
+Return JSON matching this schema:
 {
   "painPoints": [
     {
@@ -104,9 +108,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
       "keywords": ["string"]
     }
   ]
-}
-
-Return the top 5-10 most significant pain points, ordered by frequency (highest first).`;
+}`;
 
   const result = await provider.analyze(prompt);
 

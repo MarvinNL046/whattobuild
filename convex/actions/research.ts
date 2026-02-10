@@ -35,12 +35,54 @@ interface KeywordData {
   competition: number;
 }
 
-// --- BrightData Scraping ---
+interface BrightDataResponse {
+  status_code: number;
+  body: string;
+  error?: string;
+}
 
-async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
+interface SerpBody {
+  general?: { results_cnt?: number };
+  organic?: { link: string; title: string; description?: string; rank: number }[];
+  ads?: { link: string; title: string }[];
+  shopping_results?: unknown[];
+  answer_box?: unknown;
+  knowledge_graph?: unknown;
+  related?: { text: string }[];
+}
+
+// --- BrightData Web Unlocker SERP ---
+
+async function searchGoogle(query: string, num = 15): Promise<SerpBody> {
   const apiToken = process.env.BRIGHTDATA_API_TOKEN;
   if (!apiToken) throw new Error("Missing BRIGHTDATA_API_TOKEN");
+  const zone = process.env.BRIGHTDATA_ZONE ?? "whattobuild";
 
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=${num}`;
+
+  const response = await fetch("https://api.brightdata.com/request", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiToken}`,
+    },
+    body: JSON.stringify({ zone, url: searchUrl, format: "json" }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BrightData error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as BrightDataResponse;
+
+  if (data.status_code !== 200 || !data.body) {
+    throw new Error(`BrightData SERP error: status ${data.status_code}`);
+  }
+
+  return JSON.parse(data.body) as SerpBody;
+}
+
+async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
   const queries = [
     `site:reddit.com "${niche}" complaints OR problems OR issues OR hate OR frustrated`,
     `site:reddit.com "${niche}" wish OR "looking for" OR "need a" OR "anyone know"`,
@@ -52,24 +94,8 @@ async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
 
   for (const query of queries) {
     try {
-      const response = await fetch("https://api.brightdata.com/serp/req", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-          query,
-          search_engine: "google",
-          country: "us",
-          num: 15,
-        }),
-      });
-
-      if (!response.ok) continue;
-
-      const data = await response.json();
-      const organic = (data.organic as Array<{ link: string; title: string; description?: string }>) ?? [];
+      const serp = await searchGoogle(query, 15);
+      const organic = serp.organic ?? [];
 
       const source = query.includes("reddit")
         ? "reddit"
@@ -93,44 +119,112 @@ async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
   return results;
 }
 
-// --- Jina.ai Content Extraction ---
+// --- Content Extraction ---
+// Reddit: BrightData Web Unlocker + JSON API (Jina gets 403'd by Reddit)
+// Other sites: Jina.ai for clean text extraction
 
-async function extractWithJina(urls: string[]): Promise<CleanedContent[]> {
+async function extractRedditContent(url: string): Promise<CleanedContent | null> {
+  const apiToken = process.env.BRIGHTDATA_API_TOKEN;
+  if (!apiToken) return null;
+
+  try {
+    // Reddit JSON API: append .json to get structured data
+    const jsonUrl = url.endsWith("/") ? `${url}.json` : `${url}/.json`;
+
+    const response = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
+      },
+      body: JSON.stringify({
+        zone: process.env.BRIGHTDATA_UNLOCKER_ZONE ?? "whatobuild2",
+        url: jsonUrl,
+        format: "json",
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as BrightDataResponse;
+    if (data.status_code !== 200 || !data.body) return null;
+
+    const parsed = JSON.parse(data.body) as [
+      { data: { children: { data: { title: string; selftext: string } }[] } },
+      { data: { children: { kind: string; data: { body: string; author: string } }[] } },
+    ];
+
+    const post = parsed[0]?.data?.children?.[0]?.data;
+    if (!post) return null;
+
+    const comments = parsed[1]?.data?.children
+      ?.filter((c) => c.kind === "t1")
+      ?.slice(0, 15)
+      ?.map((c) => `[${c.data.author}]: ${c.data.body}`)
+      ?.join("\n\n") ?? "";
+
+    const content = `${post.title}\n\n${post.selftext}\n\n--- Comments ---\n\n${comments}`;
+
+    return {
+      url,
+      title: post.title,
+      content: content.slice(0, 8000),
+      source: "reddit.com",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function extractWithJina(url: string): Promise<CleanedContent | null> {
   const apiKey = process.env.JINA_API_KEY;
-  if (!apiKey) throw new Error("Missing JINA_API_KEY");
+  if (!apiKey) return null;
 
+  try {
+    const response = await fetch(`https://r.jina.ai/${url}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "X-Return-Format": "text",
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const content = data.data?.content ?? "";
+    if (!content) return null;
+
+    return {
+      url,
+      title: data.data?.title ?? "",
+      content,
+      source: new URL(url).hostname,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function extractContent(urls: string[]): Promise<CleanedContent[]> {
   const CONCURRENCY = 5;
   const results: CleanedContent[] = [];
-
-  // Take top 15 URLs max to balance quality vs cost
   const urlsToProcess = urls.slice(0, 15);
 
   for (let i = 0; i < urlsToProcess.length; i += CONCURRENCY) {
     const batch = urlsToProcess.slice(i, i + CONCURRENCY);
     const batchResults = await Promise.allSettled(
       batch.map(async (url) => {
-        const response = await fetch(`https://r.jina.ai/${url}`, {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: "application/json",
-            "X-Return-Format": "text",
-          },
-        });
-
-        if (!response.ok) throw new Error(`Jina failed: ${response.status}`);
-
-        const data = await response.json();
-        return {
-          url,
-          title: data.data?.title ?? "",
-          content: data.data?.content ?? "",
-          source: new URL(url).hostname,
-        } as CleanedContent;
+        // Route Reddit through BrightData Web Unlocker, rest via Jina
+        if (url.includes("reddit.com")) {
+          return extractRedditContent(url);
+        }
+        return extractWithJina(url);
       })
     );
 
     for (const result of batchResults) {
-      if (result.status === "fulfilled" && result.value.content) {
+      if (result.status === "fulfilled" && result.value) {
         results.push(result.value);
       }
     }
@@ -139,14 +233,16 @@ async function extractWithJina(urls: string[]): Promise<CleanedContent[]> {
   return results;
 }
 
-// --- AI Analysis (Claude Haiku) ---
+// --- AI Analysis (Gemini Flash) ---
 
 async function analyzeWithAI(
   niche: string,
   content: CleanedContent[]
 ): Promise<PainPoint[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const model = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 
   const contentSummary = content
     .map(
@@ -169,7 +265,9 @@ Analyze this content and identify the top pain points. For each pain point:
 5. Extract 2-3 direct quotes from the content that illustrate the pain point
 6. List relevant keywords for search volume research
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
+Return the top 5-10 most significant pain points, ordered by frequency (highest first).
+
+Return JSON matching this schema:
 {
   "painPoints": [
     {
@@ -181,31 +279,36 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
       "keywords": ["string"]
     }
   ]
-}
+}`;
 
-Return the top 5-10 most significant pain points, ordered by frequency (highest first).`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.3,
+        },
+      }),
+    }
+  );
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Claude API error: ${response.status} - ${error}`);
+    throw new Error(`Gemini API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
-  let jsonString = (data.content[0].text as string).trim();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error("Gemini returned empty response");
+  }
+
+  let jsonString = text.trim();
 
   // Handle potential markdown wrapping
   if (jsonString.startsWith("```")) {
@@ -218,7 +321,7 @@ Return the top 5-10 most significant pain points, ordered by frequency (highest 
   return parsed.painPoints;
 }
 
-// --- SerpAPI Search Volume ---
+// --- Search Volume via BrightData SERP ---
 
 function estimateVolume(totalResults: number): number {
   if (totalResults > 1_000_000_000) return 100000;
@@ -230,28 +333,54 @@ function estimateVolume(totalResults: number): number {
   return 100;
 }
 
-function estimateCompetition(
-  adsCount: number,
-  data: Record<string, unknown>
-): number {
+function estimateCompetition(serp: SerpBody): number {
   let score = 0;
+  const adsCount = serp.ads?.length ?? 0;
   score += Math.min(adsCount * 15, 45);
-  if (data.shopping_results) score += 20;
-  if (data.answer_box) score += 15;
-  if (data.knowledge_graph) score += 10;
-  const relatedCount =
-    (data.related_searches as Array<unknown>)?.length ?? 0;
+  if (serp.shopping_results) score += 20;
+  if (serp.answer_box) score += 15;
+  if (serp.knowledge_graph) score += 10;
+  const relatedCount = serp.related?.length ?? 0;
   score += Math.min(relatedCount * 2, 10);
   return Math.min(score, 100);
 }
 
 async function getSearchVolume(keywords: string[]): Promise<KeywordData[]> {
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) {
-    // SerpAPI is optional - return empty if not configured
-    return [];
+  // Try SerpAPI first if configured, otherwise use BrightData
+  const serpApiKey = process.env.SERPAPI_KEY;
+  if (serpApiKey) {
+    return getSearchVolumeViaSerpApi(keywords, serpApiKey);
   }
 
+  // Fallback: use BrightData Web Unlocker for SERP signals
+  const bdToken = process.env.BRIGHTDATA_API_TOKEN;
+  if (!bdToken) return [];
+
+  const results: KeywordData[] = [];
+
+  // Limit to 10 keywords to control BrightData costs
+  for (const keyword of keywords.slice(0, 10)) {
+    try {
+      const serp = await searchGoogle(keyword, 5);
+      const totalResults = serp.general?.results_cnt ?? 0;
+
+      results.push({
+        keyword,
+        volume: estimateVolume(totalResults),
+        competition: estimateCompetition(serp),
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  return results;
+}
+
+async function getSearchVolumeViaSerpApi(
+  keywords: string[],
+  apiKey: string
+): Promise<KeywordData[]> {
   const results: KeywordData[] = [];
 
   for (const keyword of keywords.slice(0, 20)) {
@@ -273,10 +402,19 @@ async function getSearchVolume(keywords: string[]): Promise<KeywordData[]> {
       const totalResults = data.search_information?.total_results ?? 0;
       const ads = data.ads?.length ?? 0;
 
+      let score = 0;
+      score += Math.min(ads * 15, 45);
+      if (data.shopping_results) score += 20;
+      if (data.answer_box) score += 15;
+      if (data.knowledge_graph) score += 10;
+      const relatedCount =
+        (data.related_searches as Array<unknown>)?.length ?? 0;
+      score += Math.min(relatedCount * 2, 10);
+
       results.push({
         keyword,
         volume: estimateVolume(totalResults),
-        competition: estimateCompetition(ads, data),
+        competition: Math.min(score, 100),
       });
     } catch {
       continue;
@@ -309,7 +447,7 @@ export const run = action({
     const { queryId, niche } = args;
 
     try {
-      // Step 1: Scraping
+      // Step 1: Scraping via BrightData Web Unlocker
       await ctx.runMutation(internal.queries.internalUpdateStatus, {
         queryId,
         status: "scraping",
@@ -332,7 +470,7 @@ export const run = action({
       });
 
       const urls = scrapedUrls.map((s) => s.url);
-      const cleanedContent = await extractWithJina(urls);
+      const cleanedContent = await extractContent(urls);
 
       if (cleanedContent.length === 0) {
         await ctx.runMutation(internal.queries.internalUpdateStatus, {
@@ -345,13 +483,12 @@ export const run = action({
       // Step 3: AI Analysis
       const painPoints = await analyzeWithAI(niche, cleanedContent);
 
-      // Step 4: Search Volume
+      // Step 4: Search Volume (BrightData or SerpAPI)
       await ctx.runMutation(internal.queries.internalUpdateStatus, {
         queryId,
         status: "fetching_volume",
       });
 
-      // Collect unique keywords from all pain points
       const allKeywords = [
         ...new Set(painPoints.flatMap((pp) => pp.keywords)),
       ];
@@ -376,7 +513,6 @@ export const run = action({
 
       return { success: true };
     } catch (error) {
-      // Mark as failed on any unhandled error
       await ctx.runMutation(internal.queries.internalUpdateStatus, {
         queryId,
         status: "failed",

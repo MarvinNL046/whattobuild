@@ -11,7 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Search, Zap, BarChart3, Check } from "lucide-react";
 
-// Pricing data (display only, no server secrets)
+const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Dynamically import Clerk components only when keys are present
+const ClerkComponents = hasClerk
+  ? require("@clerk/nextjs")
+  : {
+      SignInButton: ({ children }: { children: React.ReactNode }) => children,
+      SignUpButton: ({ children }: { children: React.ReactNode }) => children,
+      SignedIn: ({ children }: { children: React.ReactNode }) => children,
+      SignedOut: ({ children }: { children: React.ReactNode }) => children,
+      UserButton: () => null,
+    };
+
+const { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } =
+  ClerkComponents;
+
 const PRICING = [
   { name: "Starter", credits: 10, price: 9, popular: false },
   { name: "Growth", credits: 50, price: 29, popular: true },
@@ -49,12 +64,28 @@ export default function Home() {
             WhatToBuild
           </span>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/sign-up">Get started</Link>
-            </Button>
+            {hasClerk ? (
+              <>
+                <SignedOut>
+                  <SignInButton>
+                    <Button variant="ghost" size="sm">Sign in</Button>
+                  </SignInButton>
+                  <SignUpButton>
+                    <Button size="sm">Get started</Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </Button>
+                  <UserButton />
+                </SignedIn>
+              </>
+            ) : (
+              <Button size="sm" asChild>
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -74,9 +105,24 @@ export default function Home() {
           with search volume and competition data. One search, real answers.
         </p>
         <div className="mt-8 flex gap-3">
-          <Button size="lg" asChild>
-            <Link href="/sign-up">Start for free</Link>
-          </Button>
+          {hasClerk ? (
+            <>
+              <SignedOut>
+                <SignUpButton>
+                  <Button size="lg">Start for free</Button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <Button size="lg" asChild>
+                  <Link href="/dashboard">Go to dashboard</Link>
+                </Button>
+              </SignedIn>
+            </>
+          ) : (
+            <Button size="lg" asChild>
+              <Link href="/dashboard">Start for free</Link>
+            </Button>
+          )}
           <Button variant="outline" size="lg" asChild>
             <Link href="#pricing">See pricing</Link>
           </Button>
@@ -148,7 +194,7 @@ export default function Home() {
                     variant={plan.popular ? "default" : "outline"}
                     asChild
                   >
-                    <Link href="/sign-up">Get started</Link>
+                    <Link href="/dashboard">Get started</Link>
                   </Button>
                   <ul className="w-full space-y-1.5 text-xs text-muted-foreground">
                     <li className="flex items-center gap-1.5">
@@ -179,14 +225,6 @@ export default function Home() {
       <footer className="border-t px-4 py-6">
         <div className="mx-auto flex max-w-5xl items-center justify-between text-xs text-muted-foreground">
           <span>&copy; {new Date().getFullYear()} WhatToBuild</span>
-          <div className="flex gap-4">
-            <Link href="/sign-in" className="hover:text-foreground">
-              Sign in
-            </Link>
-            <Link href="/sign-up" className="hover:text-foreground">
-              Sign up
-            </Link>
-          </div>
         </div>
       </footer>
     </div>

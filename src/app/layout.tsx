@@ -20,20 +20,27 @@ export const metadata: Metadata = {
     "Find validated product ideas by analyzing real customer complaints from Reddit, reviews, and forums. Powered by AI.",
 };
 
+const hasClerkKeys = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+  const body = (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <ConvexClientProvider>{children}</ConvexClientProvider>
+      </body>
+    </html>
   );
+
+  if (!hasClerkKeys) {
+    // Local dev: skip ClerkProvider entirely (avoids accounts.dev DNS issues)
+    return body;
+  }
+
+  return <ClerkProvider>{body}</ClerkProvider>;
 }

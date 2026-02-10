@@ -1,9 +1,10 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+
+const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export function DashboardHeader() {
   const credits = useQuery(api.credits.getBalance);
@@ -20,11 +21,20 @@ export function DashboardHeader() {
             <CreditIcon />
             <span>{credits ?? "..."}</span>
           </div>
-          <UserButton afterSignOutUrl="/" />
+          {hasClerk ? <ClerkUserButton /> : (
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+              Home
+            </Link>
+          )}
         </div>
       </div>
     </header>
   );
+}
+
+function ClerkUserButton() {
+  const { UserButton } = require("@clerk/nextjs");
+  return <UserButton afterSignOutUrl="/" />;
 }
 
 function CreditIcon() {
