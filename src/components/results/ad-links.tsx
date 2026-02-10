@@ -6,6 +6,8 @@ interface AdLinksProps {
     tiktok?: string;
     google?: string;
     pinterest?: string;
+    spyfu?: string;
+    similarweb?: string;
   };
   niche: string;
 }
@@ -19,6 +21,8 @@ const PLATFORMS: {
   { key: "tiktok", label: "TikTok Ads", color: "bg-pink-50 text-pink-700 hover:bg-pink-100 dark:bg-pink-950 dark:text-pink-300" },
   { key: "google", label: "Google Ads", color: "bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:text-green-300" },
   { key: "pinterest", label: "Pinterest Ads", color: "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950 dark:text-red-300" },
+  { key: "spyfu", label: "SpyFu", color: "bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300" },
+  { key: "similarweb", label: "SimilarWeb", color: "bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950 dark:text-purple-300" },
 ];
 
 export function AdLinks({ links, niche }: AdLinksProps) {

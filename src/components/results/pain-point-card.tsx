@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, FileText, Lightbulb, MessageSquareQuote, ShieldCheck, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, FileText, Lightbulb, MessageSquareQuote, ShieldCheck, TrendingUp } from "lucide-react";
 
 interface Solution {
   title: string;
@@ -55,11 +59,18 @@ const DIFFICULTY_STYLES: Record<string, string> = {
 export function PainPointCard({
   painPoint,
   rank,
+  queryId,
 }: {
   painPoint: PainPoint;
   rank: number;
+  queryId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const saveMutation = useMutation(api.savedIdeas.save);
+  const isSaved = useQuery(
+    api.savedIdeas.isIdeaSaved,
+    queryId ? { queryId: queryId as Id<"queries">, painPointTitle: painPoint.title } : "skip"
+  );
 
   return (
     <Card className="gap-0 py-0 overflow-hidden">
@@ -87,6 +98,26 @@ export function PainPointCard({
             {painPoint.confidence != null && <ConfidenceBadge value={painPoint.confidence} />}
             {painPoint.evidenceCount != null && <EvidenceCount count={painPoint.evidenceCount} />}
             <FrequencyBar value={painPoint.frequency} />
+            {queryId && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className={isSaved ? "text-primary" : "text-muted-foreground"}
+                title={isSaved ? "Saved to workspace" : "Save to workspace"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isSaved) {
+                    saveMutation({
+                      queryId: queryId as Id<"queries">,
+                      painPointTitle: painPoint.title,
+                      painPointDescription: painPoint.description,
+                    });
+                  }
+                }}
+              >
+                {isSaved ? <BookmarkCheck className="size-3.5" /> : <Bookmark className="size-3.5" />}
+              </Button>
+            )}
             {expanded ? (
               <ChevronUp className="size-4 text-muted-foreground" />
             ) : (

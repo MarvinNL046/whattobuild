@@ -84,9 +84,26 @@ export default defineSchema({
       tiktok: v.optional(v.string()),
       google: v.optional(v.string()),
       pinterest: v.optional(v.string()),
+      spyfu: v.optional(v.string()),
+      similarweb: v.optional(v.string()),
     }),
     createdAt: v.number(),
   }).index("by_query", ["queryId"]),
+
+  savedIdeas: defineTable({
+    userId: v.id("users"),
+    queryId: v.id("queries"),
+    painPointTitle: v.string(),
+    painPointDescription: v.string(),
+    solutionTitle: v.optional(v.string()),
+    solutionDescription: v.optional(v.string()),
+    solutionType: v.optional(v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content"))),
+    notes: v.optional(v.string()),
+    status: v.union(v.literal("saved"), v.literal("exploring"), v.literal("building"), v.literal("archived")),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_status", ["userId", "status"]),
 
   transactions: defineTable({
     userId: v.id("users"),

@@ -90,6 +90,8 @@ export const save = internalMutation({
       tiktok: v.optional(v.string()),
       google: v.optional(v.string()),
       pinterest: v.optional(v.string()),
+      spyfu: v.optional(v.string()),
+      similarweb: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args) => {

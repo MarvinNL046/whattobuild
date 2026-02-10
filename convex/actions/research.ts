@@ -771,6 +771,8 @@ function generateAdLibraryLinks(niche: string) {
     tiktok: `https://library.tiktok.com/ads?region=all&keyword=${encoded}`,
     google: `https://adstransparency.google.com/?query=${encoded}`,
     pinterest: `https://ads.pinterest.com/advertiser/ads/?query=${encoded}`,
+    spyfu: `https://www.spyfu.com/overview/domain?query=${encoded}`,
+    similarweb: `https://www.similarweb.com/website/${encoded}/`,
   };
 }
 

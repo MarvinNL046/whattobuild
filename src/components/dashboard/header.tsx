@@ -17,6 +17,12 @@ export function DashboardHeader() {
         </Link>
 
         <div className="flex items-center gap-4">
+          <Link
+            href="/workspace"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Workspace
+          </Link>
           <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm font-medium">
             <CreditIcon />
             <span>{credits ?? "..."}</span>

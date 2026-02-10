@@ -13,6 +13,7 @@ import type * as credits from "../credits.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as queries from "../queries.js";
 import type * as results from "../results.js";
+import type * as savedIdeas from "../savedIdeas.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   queries: typeof queries;
   results: typeof results;
+  savedIdeas: typeof savedIdeas;
   users: typeof users;
 }>;
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -54,6 +55,18 @@ const RESEARCH_TYPES: {
 
 const DEFAULT_EXAMPLES = ["sleep tracking", "remote work tools", "pet grooming", "home gym equipment"];
 
+const PRESETS: {
+  emoji: string;
+  title: string;
+  niche: string;
+  types: ResearchType[];
+}[] = [
+  { emoji: "\u{1F3CB}\u{FE0F}", title: "Home Fitness", niche: "home gym equipment", types: ["ecommerce"] },
+  { emoji: "\u{1F4E7}", title: "Email Tools", niche: "email marketing", types: ["saas"] },
+  { emoji: "\u{1F415}", title: "Pet Care", niche: "pet grooming", types: ["ecommerce"] },
+  { emoji: "\u{1F4BC}", title: "Remote Work", niche: "remote work tools", types: ["saas", "directory"] },
+];
+
 function isUrl(value: string): boolean {
   return /^https?:\/\/.+\..+/.test(value.trim());
 }
@@ -84,6 +97,22 @@ export function SearchForm() {
   const [mode, setMode] = useState<Mode>("niche");
   const [selectedTypes, setSelectedTypes] = useState<ResearchType[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const searchParams = useSearchParams();
+
+  // Auto-fill from ?q= query param on mount
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) {
+      setInput(q);
+    }
+  }, [searchParams]);
+
+  function applyPreset(preset: (typeof PRESETS)[number]) {
+    setInput(preset.niche);
+    setSelectedTypes(preset.types);
+    setMode("niche");
+  }
 
   const user = useQuery(api.users.getCurrent);
   const credits = useQuery(api.credits.getBalance);
@@ -140,6 +169,30 @@ export function SearchForm() {
 
   return (
     <div className="space-y-4">
+      {/* Preset suggestions — visible only when input is empty */}
+      {input.length === 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Quick start — try a popular niche
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {PRESETS.map((preset) => (
+              <button
+                key={preset.niche}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className="flex items-center gap-2 rounded-lg border bg-secondary/50 px-3 py-2.5 text-left text-sm transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <span className="text-base leading-none">{preset.emoji}</span>
+                <span className="font-medium text-muted-foreground">
+                  {preset.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Type chips - multi-select */}
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground">

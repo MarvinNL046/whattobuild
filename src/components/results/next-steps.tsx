@@ -15,6 +15,8 @@ interface AdLinksMap {
   tiktok?: string;
   google?: string;
   pinterest?: string;
+  spyfu?: string;
+  similarweb?: string;
 }
 
 interface NextStepsProps {
@@ -52,6 +54,18 @@ const AD_PLATFORMS: {
     label: "Pinterest Ads",
     description: "Browse promoted pins",
     color: "hover:border-red-300 dark:hover:border-red-700",
+  },
+  {
+    key: "spyfu",
+    label: "SpyFu",
+    description: "Competitor keyword research",
+    color: "hover:border-orange-300 dark:hover:border-orange-700",
+  },
+  {
+    key: "similarweb",
+    label: "SimilarWeb",
+    description: "Traffic and audience analysis",
+    color: "hover:border-purple-300 dark:hover:border-purple-700",
   },
 ];
 

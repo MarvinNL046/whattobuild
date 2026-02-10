@@ -73,7 +73,7 @@ export function ResultsView({ queryId }: { queryId: string }) {
       {/* Pain Points */}
       <div className="space-y-3">
         {result.painPoints.map((pp, i) => (
-          <PainPointCard key={i} painPoint={pp} rank={i + 1} />
+          <PainPointCard key={i} painPoint={pp} rank={i + 1} queryId={queryId} />
         ))}
       </div>
 
