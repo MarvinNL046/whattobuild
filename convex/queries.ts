@@ -25,7 +25,6 @@ export const startResearch = mutation({
       v.literal("ecommerce"),
       v.literal("directory"),
       v.literal("website"),
-      v.literal("niche"),
     ))),
   },
   handler: async (ctx, args) => {

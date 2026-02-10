@@ -15,11 +15,10 @@ import {
   Monitor,
   LayoutList,
   Globe,
-  Compass,
 } from "lucide-react";
 
 type Mode = "niche" | "url";
-type ResearchType = "saas" | "ecommerce" | "directory" | "website" | "niche";
+type ResearchType = "saas" | "ecommerce" | "directory" | "website";
 
 const RESEARCH_TYPES: {
   id: ResearchType;
@@ -51,13 +50,9 @@ const RESEARCH_TYPES: {
     icon: Globe,
     examples: ["sleep tracking tips", "meal planning guide", "home workout routines", "budgeting advice"],
   },
-  {
-    id: "niche",
-    label: "Niche",
-    icon: Compass,
-    examples: ["sleep tracking", "remote work tools", "pet grooming", "home gym equipment"],
-  },
 ];
+
+const DEFAULT_EXAMPLES = ["sleep tracking", "remote work tools", "pet grooming", "home gym equipment"];
 
 function isUrl(value: string): boolean {
   return /^https?:\/\/.+\..+/.test(value.trim());
@@ -108,7 +103,7 @@ export function SearchForm() {
   const activeExamples =
     selectedTypes.length > 0
       ? [...new Set(selectedTypes.flatMap((t) => RESEARCH_TYPES.find((r) => r.id === t)?.examples ?? []))].slice(0, 5)
-      : RESEARCH_TYPES.find((r) => r.id === "niche")!.examples.slice(0, 5);
+      : DEFAULT_EXAMPLES;
 
   function handleInputChange(value: string) {
     setInput(value);

@@ -101,19 +101,30 @@ function detectSource(url: string): ScrapedUrl["source"] {
   return "forum";
 }
 
-type ResearchType = "saas" | "ecommerce" | "directory" | "website" | "niche";
+type ResearchType = "saas" | "ecommerce" | "directory" | "website";
 
 // Build search queries based on selected research types
 // Balanced across sources: Reddit, Quora, HN, Product Hunt, review sites, forums
 function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
   const queries: string[] = [];
 
-  // Base queries — 1 Reddit, 1 Quora, 1 open forum/review
+  // Base queries — balanced across sources
   queries.push(
     `site:reddit.com "${niche}" complaints OR problems OR frustrated`,
     `"${niche}" problems OR issues site:quora.com`,
     `"${niche}" complaints OR problems OR "bad experience" -site:reddit.com -site:quora.com`,
   );
+
+  // If no specific types selected, add broad exploration queries
+  if (types.length === 0) {
+    queries.push(
+      `"${niche}" review site:trustpilot.com`,
+      `"${niche}" review OR complaint site:amazon.com`,
+      `"${niche}" site:news.ycombinator.com`,
+      `"${niche}" problems OR complaints site:producthunt.com`,
+      `"${niche}" frustrating OR annoying OR "wish there was" site:quora.com`,
+    );
+  }
 
   for (const type of types) {
     switch (type) {
@@ -155,15 +166,6 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
           `"${niche}" information OR advice OR tips site:reddit.com`,
         );
         break;
-      case "niche":
-        queries.push(
-          `"${niche}" review site:trustpilot.com`,
-          `"${niche}" review OR complaint site:amazon.com`,
-          `"${niche}" site:news.ycombinator.com`,
-          `"${niche}" problems OR complaints site:producthunt.com`,
-          `"${niche}" frustrating OR annoying OR "wish there was" site:quora.com`,
-        );
-        break;
     }
   }
 
@@ -172,7 +174,7 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
 }
 
 async function scrapeWithBrightData(niche: string, researchTypes?: ResearchType[]): Promise<ScrapedUrl[]> {
-  const types = researchTypes && researchTypes.length > 0 ? researchTypes : ["niche" as ResearchType];
+  const types = researchTypes && researchTypes.length > 0 ? researchTypes : [];
   const queries = buildSearchQueries(niche, types);
 
   const results: ScrapedUrl[] = [];
@@ -510,7 +512,6 @@ async function analyzeWithAI(
           case "ecommerce": return "- E-commerce: Physical products, dropshipping, private label, DTC brands";
           case "directory": return "- Directory/Marketplace: Listing sites, comparison tools, aggregators, curated databases";
           case "website": return "- Website/Content: Blogs, courses, communities, info products, templates";
-          case "niche": return "- General niche: Any business model that fits the opportunity";
           default: return "";
         }
       }).join("\n")}`
@@ -728,7 +729,6 @@ export const run = action({
       v.literal("ecommerce"),
       v.literal("directory"),
       v.literal("website"),
-      v.literal("niche"),
     ))),
   },
   handler: async (ctx, args) => {

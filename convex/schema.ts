@@ -30,7 +30,6 @@ export default defineSchema({
       v.literal("ecommerce"),
       v.literal("directory"),
       v.literal("website"),
-      v.literal("niche"),
     ))),
     creditsUsed: v.number(),
     createdAt: v.number(),
