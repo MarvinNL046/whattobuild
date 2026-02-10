@@ -1,8 +1,19 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { getCurrentUser } from "./lib/auth";
 
 export const getByQuery = query({
+  args: { queryId: v.id("queries") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("results")
+      .withIndex("by_query", (q) => q.eq("queryId", args.queryId))
+      .unique();
+  },
+});
+
+// Internal version for use from actions
+export const getByQueryInternal = internalQuery({
   args: { queryId: v.id("queries") },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -42,6 +53,54 @@ export const getLatestByUser = query({
   },
 });
 
+// Internal mutation to update pain point solutions (used by "generate another angle")
+export const updatePainPoints = internalMutation({
+  args: {
+    resultId: v.id("results"),
+    painPoints: v.array(
+      v.object({
+        title: v.string(),
+        description: v.string(),
+        frequency: v.number(),
+        confidence: v.optional(v.number()),
+        evidenceCount: v.optional(v.number()),
+        opportunityScore: v.optional(v.number()),
+        sentiment: v.union(
+          v.literal("negative"),
+          v.literal("neutral"),
+          v.literal("mixed")
+        ),
+        quotes: v.array(
+          v.object({
+            text: v.string(),
+            source: v.string(),
+            url: v.optional(v.string()),
+          })
+        ),
+        keywords: v.array(v.string()),
+        solutions: v.optional(v.array(v.object({
+          title: v.string(),
+          description: v.string(),
+          type: v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content")),
+          difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
+          monetization: v.string(),
+        }))),
+        competitors: v.optional(v.array(v.object({
+          name: v.string(),
+          url: v.optional(v.string()),
+          description: v.string(),
+          pricing: v.optional(v.string()),
+          rating: v.optional(v.number()),
+          gap: v.optional(v.string()),
+        }))),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.resultId, { painPoints: args.painPoints });
+  },
+});
+
 // Internal mutation - only callable from Convex actions, not from client
 export const save = internalMutation({
   args: {
@@ -73,6 +132,14 @@ export const save = internalMutation({
           type: v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content")),
           difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
           monetization: v.string(),
+        }))),
+        competitors: v.optional(v.array(v.object({
+          name: v.string(),
+          url: v.optional(v.string()),
+          description: v.string(),
+          pricing: v.optional(v.string()),
+          rating: v.optional(v.number()),
+          gap: v.optional(v.string()),
         }))),
       })
     ),

@@ -68,6 +68,14 @@ export default defineSchema({
           difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
           monetization: v.string(),
         }))),
+        competitors: v.optional(v.array(v.object({
+          name: v.string(),
+          url: v.optional(v.string()),
+          description: v.string(),
+          pricing: v.optional(v.string()),
+          rating: v.optional(v.number()),
+          gap: v.optional(v.string()),
+        }))),
       })
     ),
     searchVolume: v.optional(

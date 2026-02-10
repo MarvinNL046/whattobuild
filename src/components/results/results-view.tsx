@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,16 +10,28 @@ import { AdLinks } from "./ad-links";
 import { VolumeTable } from "./volume-table";
 import { NextSteps } from "./next-steps";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import type { ExportData } from "@/lib/export";
 
 export function ResultsView({ queryId }: { queryId: string }) {
+  const [regenerating, setRegenerating] = useState(false);
   const query = useQuery(api.queries.get, {
     queryId: queryId as Id<"queries">,
   });
   const result = useQuery(api.results.getByQuery, {
     queryId: queryId as Id<"queries">,
   });
+  const regenerate = useAction(api.actions.regenerate.run);
+
+  async function handleRegenerate() {
+    setRegenerating(true);
+    try {
+      await regenerate({ queryId: queryId as Id<"queries"> });
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   if (query === undefined || result === undefined) {
     return <ResultsSkeleton />;
@@ -57,7 +70,7 @@ export function ResultsView({ queryId }: { queryId: string }) {
             <ArrowLeft className="size-4" />
           </Link>
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
             {query.niche}
           </h1>
@@ -65,6 +78,18 @@ export function ResultsView({ queryId }: { queryId: string }) {
             {result.painPoints.length} pain points found
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          title="Generate fresh product ideas for these pain points"
+        >
+          <RefreshCw className={`size-3.5 ${regenerating ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">
+            {regenerating ? "Generating..." : "Try another angle"}
+          </span>
+        </Button>
       </div>
 
       {/* Ad Library Links */}
@@ -82,6 +107,12 @@ export function ResultsView({ queryId }: { queryId: string }) {
         adLinks={result.adLinks}
         niche={query.niche}
         topKeyword={result.painPoints[0]?.keywords[0]}
+        exportData={{
+          niche: query.niche,
+          painPoints: result.painPoints,
+          searchVolume: result.searchVolume,
+          adLinks: result.adLinks,
+        } satisfies ExportData}
       />
 
       {/* Search Volume Table */}

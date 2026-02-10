@@ -7,7 +7,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, FileText, Lightbulb, MessageSquareQuote, ShieldCheck, TrendingUp } from "lucide-react";
+import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, DollarSign, FileText, Globe, Lightbulb, MessageSquareQuote, ShieldCheck, Star, Target, TrendingUp } from "lucide-react";
 
 interface Solution {
   title: string;
@@ -15,6 +15,15 @@ interface Solution {
   type: "saas" | "ecommerce" | "service" | "content";
   difficulty: "easy" | "medium" | "hard";
   monetization: string;
+}
+
+interface Competitor {
+  name: string;
+  url?: string;
+  description: string;
+  pricing?: string;
+  rating?: number;
+  gap?: string;
 }
 
 interface PainPoint {
@@ -28,6 +37,7 @@ interface PainPoint {
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
   solutions?: Solution[];
+  competitors?: Competitor[];
 }
 
 const SENTIMENT_STYLES: Record<string, string> = {
@@ -219,6 +229,66 @@ export function PainPointCard({
               </div>
             </div>
           )}
+
+          {/* Existing Solutions / Competitors */}
+          {painPoint.competitors && painPoint.competitors.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Globe className="size-3" />
+                  Existing solutions
+                </p>
+                <MarketSaturationBadge count={painPoint.competitors.length} />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {painPoint.competitors.map((competitor, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border bg-card p-3 space-y-1.5"
+                  >
+                    <p className="text-sm font-medium leading-snug">
+                      {competitor.url ? (
+                        <a
+                          href={competitor.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary underline underline-offset-2 hover:no-underline"
+                        >
+                          {competitor.name}
+                          <Globe className="size-3 shrink-0" />
+                        </a>
+                      ) : (
+                        competitor.name
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {competitor.description}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {competitor.pricing && (
+                        <Badge variant="outline" className="text-[10px] gap-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          <DollarSign className="size-2.5" />
+                          {competitor.pricing}
+                        </Badge>
+                      )}
+                      {competitor.rating != null && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                          <Star className="size-2.5 fill-current" />
+                          {competitor.rating.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                    {competitor.gap && (
+                      <p className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                        <Target className="mt-0.5 size-2.5 shrink-0 text-primary" />
+                        {competitor.gap}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       )}
     </Card>
@@ -294,5 +364,20 @@ function FrequencyBar({ value }: { value: number }) {
         {value}
       </span>
     </div>
+  );
+}
+
+function MarketSaturationBadge({ count }: { count: number }) {
+  const { label, className } =
+    count <= 1
+      ? { label: "Blue ocean", className: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" }
+      : count <= 3
+        ? { label: "Moderate", className: "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" }
+        : { label: "Saturated", className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" };
+
+  return (
+    <Badge variant="outline" className={`text-[10px] ${className}`}>
+      {label}
+    </Badge>
   );
 }

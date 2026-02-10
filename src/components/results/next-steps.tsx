@@ -1,14 +1,24 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ExternalLink,
   Search,
   PlusCircle,
   Download,
+  FileText,
+  FileSpreadsheet,
   Megaphone,
 } from "lucide-react";
+import { exportCsv, exportPdf, type ExportData } from "@/lib/export";
 
 interface AdLinksMap {
   facebook?: string;
@@ -23,6 +33,7 @@ interface NextStepsProps {
   adLinks: AdLinksMap;
   niche: string;
   topKeyword?: string;
+  exportData?: ExportData;
 }
 
 const AD_PLATFORMS: {
@@ -69,7 +80,7 @@ const AD_PLATFORMS: {
   },
 ];
 
-export function NextSteps({ adLinks, niche, topKeyword }: NextStepsProps) {
+export function NextSteps({ adLinks, niche, topKeyword, exportData }: NextStepsProps) {
   const availablePlatforms = AD_PLATFORMS.filter((p) => adLinks[p.key]);
   const suggestedKeyword = topKeyword ?? niche;
 
@@ -128,13 +139,31 @@ export function NextSteps({ adLinks, niche, topKeyword }: NextStepsProps) {
             </Link>
           </Button>
 
-          <Button variant="outline" size="sm" disabled>
-            <Download className="size-3.5" />
-            Export results
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
-              Soon
-            </Badge>
-          </Button>
+          {exportData ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="size-3.5" />
+                  Export results
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportCsv(exportData)}>
+                  <FileSpreadsheet className="size-4" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportPdf(exportData)}>
+                  <FileText className="size-4" />
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              <Download className="size-3.5" />
+              Export results
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

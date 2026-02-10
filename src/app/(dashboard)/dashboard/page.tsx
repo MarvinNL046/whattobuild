@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { SearchForm } from "@/components/dashboard/search-form";
 import { QueryList } from "@/components/dashboard/query-list";
 import { Separator } from "@/components/ui/separator";
@@ -14,7 +15,9 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <SearchForm />
+      <Suspense>
+        <SearchForm />
+      </Suspense>
 
       <Separator />
 

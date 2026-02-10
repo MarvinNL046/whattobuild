@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as actions_regenerate from "../actions/regenerate.js";
 import type * as actions_research from "../actions/research.js";
 import type * as credits from "../credits.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -23,6 +24,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "actions/regenerate": typeof actions_regenerate;
   "actions/research": typeof actions_research;
   credits: typeof credits;
   "lib/auth": typeof lib_auth;

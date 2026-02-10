@@ -28,6 +28,15 @@ interface Solution {
   monetization: string;
 }
 
+interface Competitor {
+  name: string;
+  url?: string;
+  description: string;
+  pricing?: string;
+  rating?: number;
+  gap?: string;
+}
+
 interface PainPoint {
   title: string;
   description: string;
@@ -38,6 +47,7 @@ interface PainPoint {
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
   solutions?: Solution[];
+  competitors?: Competitor[];
   opportunityScore?: number;
 }
 
@@ -762,6 +772,123 @@ function calculateOpportunityScores(
   });
 }
 
+// --- Competitor Detection (top 3 pain points only) ---
+
+async function findCompetitors(
+  niche: string,
+  painPoints: PainPoint[],
+): Promise<PainPoint[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return painPoints;
+
+  const model = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
+  const top3 = painPoints.slice(0, 3);
+
+  const results = await Promise.allSettled(
+    top3.map(async (pp) => {
+      const keyword = pp.keywords[0] ?? pp.title;
+      const query = `"${niche}" "${keyword}" solution OR tool OR app OR product`;
+
+      let serpResults: { title: string; description?: string; link: string }[] = [];
+      try {
+        const serp = await searchGoogle(query, 10);
+        serpResults = (serp.organic ?? []).map((r) => ({
+          title: r.title,
+          description: r.description,
+          link: r.link,
+        }));
+      } catch {
+        // If SERP fails, proceed with empty results - Gemini can still suggest known competitors
+      }
+
+      const serpContext = serpResults.length > 0
+        ? serpResults
+            .map((r) => `- ${r.title}: ${r.description ?? ""} (${r.link})`)
+            .join("\n")
+        : "No search results available.";
+
+      const prompt = `You are analyzing existing solutions/competitors for a specific pain point in the "${niche}" niche.
+
+Pain point: "${pp.title}"
+Description: ${pp.description}
+
+Search results for existing solutions:
+${serpContext}
+
+Based on the search results and your knowledge, identify existing tools, products, or services that address this pain point. For each competitor found:
+- name: The product/tool name
+- url: Their website URL (from search results if available)
+- description: One sentence about what they do
+- pricing: Their pricing model if known (e.g. "Free", "$9/mo", "Freemium", "Enterprise")
+- rating: A quality rating from 1-5 based on apparent popularity/quality
+- gap: What gap or weakness this competitor has that a new product could exploit
+
+Return JSON:
+{
+  "competitors": [
+    {
+      "name": "string",
+      "url": "string or null",
+      "description": "string",
+      "pricing": "string or null",
+      "rating": number_or_null,
+      "gap": "string or null"
+    }
+  ]
+}
+
+Return up to 5 competitors. If no relevant competitors exist, return an empty array.`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.3,
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) return pp;
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) return pp;
+
+      let jsonString = text.trim();
+      if (jsonString.startsWith("```")) {
+        jsonString = jsonString
+          .replace(/^```(?:json)?\n?/, "")
+          .replace(/\n?```$/, "");
+      }
+
+      const parsed = JSON.parse(jsonString) as { competitors: Competitor[] };
+      const competitors = (parsed.competitors ?? []).slice(0, 5).map((c) => ({
+        name: c.name,
+        url: c.url || undefined,
+        description: c.description,
+        pricing: c.pricing || undefined,
+        rating: typeof c.rating === "number" ? c.rating : undefined,
+        gap: c.gap || undefined,
+      }));
+
+      return { ...pp, competitors };
+    }),
+  );
+
+  // Merge results back: top 3 with competitors, rest unchanged
+  const enriched = results.map((r, i) =>
+    r.status === "fulfilled" ? r.value : top3[i],
+  );
+
+  return [...enriched, ...painPoints.slice(3)];
+}
+
 // --- Ad Library Links ---
 
 function generateAdLibraryLinks(niche: string) {
@@ -866,13 +993,16 @@ export const run = action({
       // Sort by opportunity score (highest first)
       scoredPainPoints.sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
 
+      // Step 5b: Find competitors for top 3 pain points
+      const enrichedPainPoints = await findCompetitors(niche, scoredPainPoints);
+
       // Step 6: Generate ad library links
       const adLinks = generateAdLibraryLinks(niche);
 
       // Step 7: Save results
       await ctx.runMutation(internal.results.save, {
         queryId,
-        painPoints: scoredPainPoints,
+        painPoints: enrichedPainPoints,
         searchVolume: searchVolume.length > 0 ? searchVolume : undefined,
         adLinks,
       });

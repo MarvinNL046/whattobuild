@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser, ensureUser } from "./lib/auth";
 
 export const create = mutation({
@@ -109,6 +109,14 @@ export const listByUser = query({
 });
 
 export const get = query({
+  args: { queryId: v.id("queries") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.queryId);
+  },
+});
+
+// Internal version for use from actions
+export const getInternal = internalQuery({
   args: { queryId: v.id("queries") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.queryId);
