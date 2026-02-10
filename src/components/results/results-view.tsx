@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PainPointCard } from "./pain-point-card";
 import { AdLinks } from "./ad-links";
 import { VolumeTable } from "./volume-table";
+import { NextSteps } from "./next-steps";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -75,6 +76,13 @@ export function ResultsView({ queryId }: { queryId: string }) {
           <PainPointCard key={i} painPoint={pp} rank={i + 1} />
         ))}
       </div>
+
+      {/* Next Steps */}
+      <NextSteps
+        adLinks={result.adLinks}
+        niche={query.niche}
+        topKeyword={result.painPoints[0]?.keywords[0]}
+      />
 
       {/* Search Volume Table */}
       {result.searchVolume && result.searchVolume.length > 0 && (

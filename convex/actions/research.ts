@@ -32,10 +32,13 @@ interface PainPoint {
   title: string;
   description: string;
   frequency: number;
+  confidence: number;
+  evidenceCount: number;
   sentiment: "negative" | "neutral" | "mixed";
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
   solutions?: Solution[];
+  opportunityScore?: number;
 }
 
 interface KeywordData {
@@ -527,10 +530,12 @@ Analyze this content and identify the top pain points. For each pain point:
 1. Give it a clear, concise title
 2. Write a brief description of the problem
 3. Rate its frequency (1-10, how often it comes up)
-4. Classify sentiment: "negative", "neutral", or "mixed"
-5. Extract 2-3 direct quotes from the content that illustrate the pain point
-6. List relevant keywords for search volume research
-7. Suggest 2-3 concrete product solutions that directly address this pain point. For each solution:
+4. Rate your confidence (0-100) in this pain point being a real, validated problem. Base this on: number of independent sources mentioning it, specificity of complaints, and consistency across sources. 90+ = mentioned in many sources with specific details. 50-89 = mentioned in a few sources or with less detail. Below 50 = inferred or only vaguely mentioned.
+5. Count evidenceCount: the number of distinct sources (URLs/threads) from the scraped content that mention or support this pain point.
+6. Classify sentiment: "negative", "neutral", or "mixed"
+7. Extract 2-3 direct quotes from the content that illustrate the pain point
+8. List relevant keywords for search volume research
+9. Suggest 2-3 concrete product solutions that directly address this pain point. For each solution:
    - Give it a creative, brandable product name
    - Write a one-sentence description of what it does
    - Classify its type: "saas", "ecommerce", "service", or "content"
@@ -546,6 +551,8 @@ Return JSON matching this schema:
       "title": "string",
       "description": "string",
       "frequency": number,
+      "confidence": number,
+      "evidenceCount": number,
       "sentiment": "negative" | "neutral" | "mixed",
       "quotes": [{"text": "string", "source": "string", "url": "string"}],
       "keywords": ["string"],
@@ -705,6 +712,56 @@ async function getSearchVolumeViaSerpApi(
   return results;
 }
 
+// --- Opportunity Score ---
+
+function calculateOpportunityScores(
+  painPoints: PainPoint[],
+  searchVolume: KeywordData[],
+): PainPoint[] {
+  const volumeMap = new Map(searchVolume.map((sv) => [sv.keyword, sv]));
+
+  return painPoints.map((pp) => {
+    // Frequency score (30%): frequency is 1-10, normalize to 0-100
+    const frequencyScore = (pp.frequency / 10) * 100;
+
+    // Search volume score (25%): avg volume of related keywords
+    const relatedVolumes = pp.keywords
+      .map((kw) => volumeMap.get(kw)?.volume ?? 0)
+      .filter((v) => v > 0);
+    const avgVolume = relatedVolumes.length > 0
+      ? relatedVolumes.reduce((a, b) => a + b, 0) / relatedVolumes.length
+      : 0;
+    // Normalize: 100k+ = 100, log scale
+    const volumeScore = avgVolume > 0 ? Math.min((Math.log10(avgVolume) / 5) * 100, 100) : 20;
+
+    // Competition score (20%): inverse — lower competition = higher opportunity
+    const relatedCompetitions = pp.keywords
+      .map((kw) => volumeMap.get(kw)?.competition ?? 50)
+      .filter((c) => c > 0);
+    const avgCompetition = relatedCompetitions.length > 0
+      ? relatedCompetitions.reduce((a, b) => a + b, 0) / relatedCompetitions.length
+      : 50;
+    const competitionScore = 100 - avgCompetition;
+
+    // Sentiment score (15%): negative = high opportunity
+    const sentimentScore = pp.sentiment === "negative" ? 100 : pp.sentiment === "mixed" ? 60 : 30;
+
+    // Solution gap score (10%): fewer existing solutions = more opportunity
+    const solutionCount = pp.solutions?.length ?? 0;
+    const solutionScore = solutionCount <= 1 ? 100 : solutionCount <= 3 ? 60 : 30;
+
+    const opportunityScore = Math.round(
+      frequencyScore * 0.30 +
+      volumeScore * 0.25 +
+      competitionScore * 0.20 +
+      sentimentScore * 0.15 +
+      solutionScore * 0.10,
+    );
+
+    return { ...pp, opportunityScore };
+  });
+}
+
 // --- Ad Library Links ---
 
 function generateAdLibraryLinks(niche: string) {
@@ -801,13 +858,19 @@ export const run = action({
       ];
       const searchVolume = await getSearchVolume(allKeywords);
 
-      // Step 5: Generate ad library links
+      // Step 5: Calculate opportunity scores
+      const scoredPainPoints = calculateOpportunityScores(painPoints, searchVolume);
+
+      // Sort by opportunity score (highest first)
+      scoredPainPoints.sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
+
+      // Step 6: Generate ad library links
       const adLinks = generateAdLibraryLinks(niche);
 
-      // Step 6: Save results
+      // Step 7: Save results
       await ctx.runMutation(internal.results.save, {
         queryId,
-        painPoints,
+        painPoints: scoredPainPoints,
         searchVolume: searchVolume.length > 0 ? searchVolume : undefined,
         adLinks,
       });

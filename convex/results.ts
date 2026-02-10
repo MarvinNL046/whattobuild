@@ -51,6 +51,9 @@ export const save = internalMutation({
         title: v.string(),
         description: v.string(),
         frequency: v.number(),
+        confidence: v.optional(v.number()),
+        evidenceCount: v.optional(v.number()),
+        opportunityScore: v.optional(v.number()),
         sentiment: v.union(
           v.literal("negative"),
           v.literal("neutral"),

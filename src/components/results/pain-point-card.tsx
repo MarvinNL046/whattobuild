@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Lightbulb, MessageSquareQuote } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Lightbulb, MessageSquareQuote, ShieldCheck, TrendingUp } from "lucide-react";
 
 interface Solution {
   title: string;
@@ -17,6 +17,9 @@ interface PainPoint {
   title: string;
   description: string;
   frequency: number;
+  confidence?: number;
+  evidenceCount?: number;
+  opportunityScore?: number;
   sentiment: "negative" | "neutral" | "mixed";
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
@@ -80,6 +83,9 @@ export function PainPointCard({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {painPoint.opportunityScore != null && <OpportunityBadge score={painPoint.opportunityScore} />}
+            {painPoint.confidence != null && <ConfidenceBadge value={painPoint.confidence} />}
+            {painPoint.evidenceCount != null && <EvidenceCount count={painPoint.evidenceCount} />}
             <FrequencyBar value={painPoint.frequency} />
             {expanded ? (
               <ChevronUp className="size-4 text-muted-foreground" />
@@ -185,6 +191,56 @@ export function PainPointCard({
         </CardContent>
       )}
     </Card>
+  );
+}
+
+function OpportunityBadge({ score }: { score: number }) {
+  const color =
+    score >= 70
+      ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+      : score >= 40
+        ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300"
+        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300";
+
+  return (
+    <div
+      className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${color}`}
+      title={`Opportunity Score: ${score}/100`}
+    >
+      <TrendingUp className="size-3" />
+      <span className="text-[10px] font-semibold tabular-nums">{score}</span>
+    </div>
+  );
+}
+
+function ConfidenceBadge({ value }: { value: number }) {
+  const color =
+    value >= 75
+      ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+      : value >= 50
+        ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300"
+        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300";
+
+  return (
+    <div
+      className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${color}`}
+      title={`Confidence: ${value}%`}
+    >
+      <ShieldCheck className="size-3" />
+      <span className="text-[10px] font-medium tabular-nums">{value}%</span>
+    </div>
+  );
+}
+
+function EvidenceCount({ count }: { count: number }) {
+  return (
+    <div
+      className="flex items-center gap-1 text-muted-foreground"
+      title={`Based on ${count} source${count !== 1 ? "s" : ""}`}
+    >
+      <FileText className="size-3" />
+      <span className="text-[10px] tabular-nums">{count}</span>
+    </div>
   );
 }
 
