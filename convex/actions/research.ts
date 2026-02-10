@@ -10,7 +10,7 @@ interface ScrapedUrl {
   url: string;
   title: string;
   description: string;
-  source: "reddit" | "trustpilot" | "amazon" | "forum";
+  source: "reddit" | "trustpilot" | "amazon" | "forum" | "quora" | "hackernews" | "producthunt";
 }
 
 interface CleanedContent {
@@ -20,6 +20,14 @@ interface CleanedContent {
   source: string;
 }
 
+interface Solution {
+  title: string;
+  description: string;
+  type: "saas" | "ecommerce" | "service" | "content";
+  difficulty: "easy" | "medium" | "hard";
+  monetization: string;
+}
+
 interface PainPoint {
   title: string;
   description: string;
@@ -27,6 +35,7 @@ interface PainPoint {
   sentiment: "negative" | "neutral" | "mixed";
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
+  solutions?: Solution[];
 }
 
 interface KeywordData {
@@ -82,33 +91,45 @@ async function searchGoogle(query: string, num = 15): Promise<SerpBody> {
   return JSON.parse(data.body) as SerpBody;
 }
 
+function detectSource(query: string): ScrapedUrl["source"] {
+  if (query.includes("reddit.com")) return "reddit";
+  if (query.includes("trustpilot.com")) return "trustpilot";
+  if (query.includes("amazon.com")) return "amazon";
+  if (query.includes("quora.com")) return "quora";
+  if (query.includes("ycombinator.com")) return "hackernews";
+  if (query.includes("producthunt.com")) return "producthunt";
+  return "forum";
+}
+
 async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
   const queries = [
     `site:reddit.com "${niche}" complaints OR problems OR issues OR hate OR frustrated`,
     `site:reddit.com "${niche}" wish OR "looking for" OR "need a" OR "anyone know"`,
     `site:trustpilot.com "${niche}" review`,
     `site:amazon.com "${niche}" review "1 star" OR "2 star" OR "disappointed"`,
+    `"${niche}" site:quora.com`,
+    `"${niche}" site:news.ycombinator.com`,
+    `"${niche}" problems OR complaints OR issues site:producthunt.com`,
   ];
 
   const results: ScrapedUrl[] = [];
+  const seenUrls = new Set<string>();
 
   for (const query of queries) {
     try {
-      const serp = await searchGoogle(query, 15);
+      const serp = await searchGoogle(query, 10);
       const organic = serp.organic ?? [];
-
-      const source = query.includes("reddit")
-        ? "reddit"
-        : query.includes("trustpilot")
-          ? "trustpilot"
-          : "amazon";
+      const source = detectSource(query);
 
       for (const result of organic) {
+        if (seenUrls.has(result.link)) continue;
+        seenUrls.add(result.link);
+
         results.push({
           url: result.link,
           title: result.title,
           description: result.description ?? "",
-          source: source as ScrapedUrl["source"],
+          source,
         });
       }
     } catch {
@@ -116,7 +137,8 @@ async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
     }
   }
 
-  return results;
+  // Limit total URLs to keep costs reasonable
+  return results.slice(0, 20);
 }
 
 // --- Content Extraction ---
@@ -206,18 +228,186 @@ async function extractWithJina(url: string): Promise<CleanedContent | null> {
   }
 }
 
+// Quora: BrightData Web Unlocker (Quora blocks most scrapers)
+async function extractQuoraContent(url: string): Promise<CleanedContent | null> {
+  const apiToken = process.env.BRIGHTDATA_API_TOKEN;
+  if (!apiToken) return null;
+
+  try {
+    const response = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
+      },
+      body: JSON.stringify({
+        zone: process.env.BRIGHTDATA_UNLOCKER_ZONE ?? "whatobuild2",
+        url,
+        format: "json",
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as BrightDataResponse;
+    if (data.status_code !== 200 || !data.body) return null;
+
+    const html = data.body;
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch?.[1]?.replace(/ - Quora$/, "") ?? "";
+
+    const textContent = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!textContent || textContent.length < 100) return null;
+
+    return {
+      url,
+      title,
+      content: textContent.slice(0, 8000),
+      source: "quora",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Hacker News: Free public Algolia API (no BrightData needed)
+interface HNHit {
+  objectID: string;
+  title?: string;
+  story_text?: string;
+  url?: string;
+  num_comments?: number;
+}
+
+interface HNComment {
+  author?: string;
+  comment_text?: string;
+  children?: HNComment[];
+}
+
+async function extractHNContent(url: string): Promise<CleanedContent | null> {
+  try {
+    const idMatch = url.match(/id=(\d+)/);
+    if (!idMatch) return null;
+
+    const storyId = idMatch[1];
+    const response = await fetch(
+      `https://hn.algolia.com/api/v1/items/${storyId}`
+    );
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as HNHit & { children?: HNComment[] };
+    const title = data.title ?? "";
+    const storyText = data.story_text ?? "";
+
+    const comments = (data.children ?? [])
+      .slice(0, 15)
+      .filter(
+        (c): c is HNComment & { comment_text: string } => !!c.comment_text
+      )
+      .map((c) => {
+        const text = c.comment_text
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        return `[${c.author ?? "anon"}]: ${text}`;
+      })
+      .join("\n\n");
+
+    const content = `${title}\n\n${storyText}\n\n--- Comments ---\n\n${comments}`;
+
+    if (content.length < 50) return null;
+
+    return {
+      url,
+      title,
+      content: content.slice(0, 8000),
+      source: "hackernews",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Product Hunt: BrightData Web Unlocker (extracts product info and reviews)
+async function extractProductHuntContent(
+  url: string
+): Promise<CleanedContent | null> {
+  const apiToken = process.env.BRIGHTDATA_API_TOKEN;
+  if (!apiToken) {
+    return extractWithJina(url);
+  }
+
+  try {
+    const response = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
+      },
+      body: JSON.stringify({
+        zone: process.env.BRIGHTDATA_UNLOCKER_ZONE ?? "whatobuild2",
+        url,
+        format: "json",
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as BrightDataResponse;
+    if (data.status_code !== 200 || !data.body) return null;
+
+    const html = data.body;
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch?.[1]?.replace(/ \| Product Hunt$/, "") ?? "";
+
+    const textContent = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!textContent || textContent.length < 100) return null;
+
+    return {
+      url,
+      title,
+      content: textContent.slice(0, 8000),
+      source: "producthunt",
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function extractContent(urls: string[]): Promise<CleanedContent[]> {
   const CONCURRENCY = 5;
   const results: CleanedContent[] = [];
-  const urlsToProcess = urls.slice(0, 15);
+  const urlsToProcess = urls.slice(0, 20);
 
   for (let i = 0; i < urlsToProcess.length; i += CONCURRENCY) {
     const batch = urlsToProcess.slice(i, i + CONCURRENCY);
     const batchResults = await Promise.allSettled(
       batch.map(async (url) => {
-        // Route Reddit through BrightData Web Unlocker, rest via Jina
         if (url.includes("reddit.com")) {
           return extractRedditContent(url);
+        }
+        if (url.includes("quora.com")) {
+          return extractQuoraContent(url);
+        }
+        if (url.includes("news.ycombinator.com")) {
+          return extractHNContent(url);
+        }
+        if (url.includes("producthunt.com")) {
+          return extractProductHuntContent(url);
         }
         return extractWithJina(url);
       })
@@ -253,7 +443,7 @@ async function analyzeWithAI(
 
   const prompt = `You are analyzing user complaints and discussions about "${niche}" to identify pain points and product opportunities.
 
-Here is scraped content from Reddit, review sites, and forums:
+Here is scraped content from Reddit, Quora, Hacker News, Product Hunt, review sites, and forums:
 
 ${contentSummary}
 
@@ -264,6 +454,12 @@ Analyze this content and identify the top pain points. For each pain point:
 4. Classify sentiment: "negative", "neutral", or "mixed"
 5. Extract 2-3 direct quotes from the content that illustrate the pain point
 6. List relevant keywords for search volume research
+7. Suggest 2-3 concrete product solutions that directly address this pain point. For each solution:
+   - Give it a creative, brandable product name
+   - Write a one-sentence description of what it does
+   - Classify its type: "saas", "ecommerce", "service", or "content"
+   - Rate difficulty to build: "easy", "medium", or "hard"
+   - Suggest a specific monetization model (e.g. "$9.99/mo subscription", "$29 one-time", "freemium with $19/mo pro tier")
 
 Return the top 5-10 most significant pain points, ordered by frequency (highest first).
 
@@ -276,7 +472,16 @@ Return JSON matching this schema:
       "frequency": number,
       "sentiment": "negative" | "neutral" | "mixed",
       "quotes": [{"text": "string", "source": "string", "url": "string"}],
-      "keywords": ["string"]
+      "keywords": ["string"],
+      "solutions": [
+        {
+          "title": "string (creative product name)",
+          "description": "string (one-sentence product description)",
+          "type": "saas" | "ecommerce" | "service" | "content",
+          "difficulty": "easy" | "medium" | "hard",
+          "monetization": "string (specific pricing model)"
+        }
+      ]
     }
   ]
 }`;
@@ -442,42 +647,62 @@ export const run = action({
   args: {
     queryId: v.id("queries"),
     niche: v.string(),
+    sourceUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { queryId, niche } = args;
+    const { queryId, niche, sourceUrl } = args;
 
     try {
-      // Step 1: Scraping via BrightData Web Unlocker
-      await ctx.runMutation(internal.queries.internalUpdateStatus, {
-        queryId,
-        status: "scraping",
-      });
+      let cleanedContent: CleanedContent[];
 
-      const scrapedUrls = await scrapeWithBrightData(niche);
-
-      if (scrapedUrls.length === 0) {
+      if (sourceUrl) {
+        // Direct URL mode: skip SERP, extract content directly from the URL
         await ctx.runMutation(internal.queries.internalUpdateStatus, {
           queryId,
-          status: "failed",
+          status: "analyzing",
         });
-        return { success: false, error: "No results found for this niche" };
-      }
 
-      // Step 2: Content extraction with Jina.ai
-      await ctx.runMutation(internal.queries.internalUpdateStatus, {
-        queryId,
-        status: "analyzing",
-      });
-
-      const urls = scrapedUrls.map((s) => s.url);
-      const cleanedContent = await extractContent(urls);
-
-      if (cleanedContent.length === 0) {
+        const extracted = await extractContent([sourceUrl]);
+        if (extracted.length === 0) {
+          await ctx.runMutation(internal.queries.internalUpdateStatus, {
+            queryId,
+            status: "failed",
+          });
+          return { success: false, error: "Failed to extract content from URL" };
+        }
+        cleanedContent = extracted;
+      } else {
+        // Standard mode: scrape Google SERP first
         await ctx.runMutation(internal.queries.internalUpdateStatus, {
           queryId,
-          status: "failed",
+          status: "scraping",
         });
-        return { success: false, error: "Failed to extract content" };
+
+        const scrapedUrls = await scrapeWithBrightData(niche);
+
+        if (scrapedUrls.length === 0) {
+          await ctx.runMutation(internal.queries.internalUpdateStatus, {
+            queryId,
+            status: "failed",
+          });
+          return { success: false, error: "No results found for this niche" };
+        }
+
+        await ctx.runMutation(internal.queries.internalUpdateStatus, {
+          queryId,
+          status: "analyzing",
+        });
+
+        const urls = scrapedUrls.map((s) => s.url);
+        cleanedContent = await extractContent(urls);
+
+        if (cleanedContent.length === 0) {
+          await ctx.runMutation(internal.queries.internalUpdateStatus, {
+            queryId,
+            status: "failed",
+          });
+          return { success: false, error: "Failed to extract content" };
+        }
       }
 
       // Step 3: AI Analysis

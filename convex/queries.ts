@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { getCurrentUser, ensureUser } from "./lib/auth";
 
 export const create = mutation({
   args: { userId: v.id("users"), niche: v.string() },
@@ -16,17 +17,10 @@ export const create = mutation({
 
 // Atomic: check credits + deduct + create query in single transaction
 export const startResearch = mutation({
-  args: { niche: v.string() },
+  args: { niche: v.string(), sourceUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const user = await ensureUser(ctx);
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) throw new Error("User not found");
     if (user.credits < 1) throw new Error("Insufficient credits");
 
     // Deduct credit
@@ -45,6 +39,7 @@ export const startResearch = mutation({
     const queryId = await ctx.db.insert("queries", {
       userId: user._id,
       niche: args.niche,
+      sourceUrl: args.sourceUrl,
       status: "pending",
       creditsUsed: 1,
       createdAt: Date.now(),
@@ -92,14 +87,7 @@ export const internalUpdateStatus = internalMutation({
 export const listByUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
+    const user = await getCurrentUser(ctx);
     if (!user) return [];
 
     return await ctx.db

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getCurrentUser } from "./lib/auth";
 
 export const getByClerkId = query({
   args: { clerkId: v.string() },
@@ -14,13 +15,7 @@ export const getByClerkId = query({
 export const getCurrent = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    return await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
+    return await getCurrentUser(ctx);
   },
 });
 

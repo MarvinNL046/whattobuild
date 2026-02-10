@@ -10,6 +10,7 @@
 
 import type * as actions_research from "../actions/research.js";
 import type * as credits from "../credits.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as queries from "../queries.js";
 import type * as results from "../results.js";
 import type * as users from "../users.js";
@@ -23,6 +24,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "actions/research": typeof actions_research;
   credits: typeof credits;
+  "lib/auth": typeof lib_auth;
   queries: typeof queries;
   results: typeof results;
   users: typeof users;

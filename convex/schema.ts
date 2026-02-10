@@ -24,6 +24,7 @@ export default defineSchema({
       v.literal("done"),
       v.literal("failed")
     ),
+    sourceUrl: v.optional(v.string()),
     creditsUsed: v.number(),
     createdAt: v.number(),
   })
@@ -51,6 +52,13 @@ export default defineSchema({
           })
         ),
         keywords: v.array(v.string()),
+        solutions: v.optional(v.array(v.object({
+          title: v.string(),
+          description: v.string(),
+          type: v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content")),
+          difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
+          monetization: v.string(),
+        }))),
       })
     ),
     searchVolume: v.optional(

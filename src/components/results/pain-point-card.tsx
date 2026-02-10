@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, MessageSquareQuote } from "lucide-react";
+import { ChevronDown, ChevronUp, Lightbulb, MessageSquareQuote } from "lucide-react";
+
+interface Solution {
+  title: string;
+  description: string;
+  type: "saas" | "ecommerce" | "service" | "content";
+  difficulty: "easy" | "medium" | "hard";
+  monetization: string;
+}
 
 interface PainPoint {
   title: string;
@@ -12,12 +20,33 @@ interface PainPoint {
   sentiment: "negative" | "neutral" | "mixed";
   quotes: { text: string; source: string; url?: string }[];
   keywords: string[];
+  solutions?: Solution[];
 }
 
 const SENTIMENT_STYLES: Record<string, string> = {
   negative: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
   neutral: "bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300",
   mixed: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+};
+
+const TYPE_STYLES: Record<string, string> = {
+  saas: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  ecommerce: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  service: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+  content: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  saas: "SaaS",
+  ecommerce: "E-commerce",
+  service: "Service",
+  content: "Content",
+};
+
+const DIFFICULTY_STYLES: Record<string, string> = {
+  easy: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
+  medium: "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
+  hard: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
 export function PainPointCard({
@@ -109,6 +138,48 @@ export function PainPointCard({
                   </span>
                 </blockquote>
               ))}
+            </div>
+          )}
+
+          {/* Solutions */}
+          {painPoint.solutions && painPoint.solutions.length > 0 && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Lightbulb className="size-3" />
+                Product ideas
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {painPoint.solutions.map((solution, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border bg-card p-3 space-y-2"
+                  >
+                    <p className="text-sm font-medium leading-snug">
+                      {solution.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {solution.description}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${TYPE_STYLES[solution.type]}`}
+                      >
+                        {TYPE_LABELS[solution.type]}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${DIFFICULTY_STYLES[solution.difficulty]}`}
+                      >
+                        {solution.difficulty}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {solution.monetization}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
