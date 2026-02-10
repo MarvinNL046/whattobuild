@@ -25,6 +25,13 @@ export default defineSchema({
       v.literal("failed")
     ),
     sourceUrl: v.optional(v.string()),
+    researchTypes: v.optional(v.array(v.union(
+      v.literal("saas"),
+      v.literal("ecommerce"),
+      v.literal("directory"),
+      v.literal("website"),
+      v.literal("niche"),
+    ))),
     creditsUsed: v.number(),
     createdAt: v.number(),
   })

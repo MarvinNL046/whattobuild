@@ -91,26 +91,89 @@ async function searchGoogle(query: string, num = 15): Promise<SerpBody> {
   return JSON.parse(data.body) as SerpBody;
 }
 
-function detectSource(query: string): ScrapedUrl["source"] {
-  if (query.includes("reddit.com")) return "reddit";
-  if (query.includes("trustpilot.com")) return "trustpilot";
-  if (query.includes("amazon.com")) return "amazon";
-  if (query.includes("quora.com")) return "quora";
-  if (query.includes("ycombinator.com")) return "hackernews";
-  if (query.includes("producthunt.com")) return "producthunt";
+function detectSource(url: string): ScrapedUrl["source"] {
+  if (url.includes("reddit.com")) return "reddit";
+  if (url.includes("trustpilot.com")) return "trustpilot";
+  if (url.includes("amazon.com")) return "amazon";
+  if (url.includes("quora.com")) return "quora";
+  if (url.includes("news.ycombinator.com") || url.includes("hacker-news")) return "hackernews";
+  if (url.includes("producthunt.com")) return "producthunt";
   return "forum";
 }
 
-async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
-  const queries = [
-    `site:reddit.com "${niche}" complaints OR problems OR issues OR hate OR frustrated`,
-    `site:reddit.com "${niche}" wish OR "looking for" OR "need a" OR "anyone know"`,
-    `site:trustpilot.com "${niche}" review`,
-    `site:amazon.com "${niche}" review "1 star" OR "2 star" OR "disappointed"`,
-    `"${niche}" site:quora.com`,
-    `"${niche}" site:news.ycombinator.com`,
-    `"${niche}" problems OR complaints OR issues site:producthunt.com`,
-  ];
+type ResearchType = "saas" | "ecommerce" | "directory" | "website" | "niche";
+
+// Build search queries based on selected research types
+// Balanced across sources: Reddit, Quora, HN, Product Hunt, review sites, forums
+function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
+  const queries: string[] = [];
+
+  // Base queries — 1 Reddit, 1 Quora, 1 open forum/review
+  queries.push(
+    `site:reddit.com "${niche}" complaints OR problems OR frustrated`,
+    `"${niche}" problems OR issues site:quora.com`,
+    `"${niche}" complaints OR problems OR "bad experience" -site:reddit.com -site:quora.com`,
+  );
+
+  for (const type of types) {
+    switch (type) {
+      case "saas":
+        queries.push(
+          `"${niche}" software alternatives OR "better than" site:reddit.com`,
+          `"${niche}" site:producthunt.com`,
+          `"${niche}" SaaS OR tool OR platform site:news.ycombinator.com`,
+          `"${niche}" software review site:g2.com OR site:capterra.com`,
+          `"${niche}" SaaS problems OR "wish it could" site:quora.com`,
+          `"${niche}" software OR tool review OR complaint site:trustpilot.com`,
+        );
+        break;
+      case "ecommerce":
+        queries.push(
+          `"${niche}" review "1 star" OR "2 stars" OR "disappointed" site:amazon.com`,
+          `site:trustpilot.com "${niche}" review`,
+          `"${niche}" product quality OR defective OR "broke after" site:amazon.com`,
+          `"${niche}" dropshipping OR supplier OR wholesale site:quora.com`,
+          `"${niche}" product review OR unboxing OR comparison -site:reddit.com -site:amazon.com`,
+          `"${niche}" "not worth" OR "waste of money" OR "returned" site:reddit.com`,
+        );
+        break;
+      case "directory":
+        queries.push(
+          `"${niche}" "hard to find" OR "where to find" OR "no good list"`,
+          `"${niche}" directory OR comparison OR aggregator site:producthunt.com`,
+          `"${niche}" marketplace OR listing OR "best list" site:quora.com`,
+          `"${niche}" directory OR catalog OR comparison site:news.ycombinator.com`,
+          `"${niche}" "there should be" OR "someone should build" site:reddit.com`,
+        );
+        break;
+      case "website":
+        queries.push(
+          `"${niche}" guide OR tutorial OR course problems site:quora.com`,
+          `"${niche}" blog OR content OR resource "hard to find"`,
+          `"${niche}" online course OR tutorial review site:trustpilot.com`,
+          `"${niche}" learning OR education site:news.ycombinator.com`,
+          `"${niche}" information OR advice OR tips site:reddit.com`,
+        );
+        break;
+      case "niche":
+        queries.push(
+          `"${niche}" review site:trustpilot.com`,
+          `"${niche}" review OR complaint site:amazon.com`,
+          `"${niche}" site:news.ycombinator.com`,
+          `"${niche}" problems OR complaints site:producthunt.com`,
+          `"${niche}" frustrating OR annoying OR "wish there was" site:quora.com`,
+        );
+        break;
+    }
+  }
+
+  // Deduplicate queries
+  return [...new Set(queries)];
+}
+
+async function scrapeWithBrightData(niche: string, researchTypes?: ResearchType[]): Promise<ScrapedUrl[]> {
+  const types = researchTypes && researchTypes.length > 0 ? researchTypes : ["niche" as ResearchType];
+  const queries = buildSearchQueries(niche, types);
 
   const results: ScrapedUrl[] = [];
   const seenUrls = new Set<string>();
@@ -119,8 +182,6 @@ async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
     try {
       const serp = await searchGoogle(query, 10);
       const organic = serp.organic ?? [];
-      const source = detectSource(query);
-
       for (const result of organic) {
         if (seenUrls.has(result.link)) continue;
         seenUrls.add(result.link);
@@ -129,7 +190,7 @@ async function scrapeWithBrightData(niche: string): Promise<ScrapedUrl[]> {
           url: result.link,
           title: result.title,
           description: result.description ?? "",
-          source,
+          source: detectSource(result.link),
         });
       }
     } catch {
@@ -427,7 +488,8 @@ async function extractContent(urls: string[]): Promise<CleanedContent[]> {
 
 async function analyzeWithAI(
   niche: string,
-  content: CleanedContent[]
+  content: CleanedContent[],
+  researchTypes?: ResearchType[],
 ): Promise<PainPoint[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
@@ -441,7 +503,20 @@ async function analyzeWithAI(
     )
     .join("\n\n---\n\n");
 
-  const prompt = `You are analyzing user complaints and discussions about "${niche}" to identify pain points and product opportunities.
+  const typeContext = researchTypes && researchTypes.length > 0
+    ? `\n\nThe user is specifically looking for ${researchTypes.join(" + ")} opportunities. Focus your solutions on these business models:\n${researchTypes.map(t => {
+        switch (t) {
+          case "saas": return "- SaaS: Software tools, platforms, apps, browser extensions";
+          case "ecommerce": return "- E-commerce: Physical products, dropshipping, private label, DTC brands";
+          case "directory": return "- Directory/Marketplace: Listing sites, comparison tools, aggregators, curated databases";
+          case "website": return "- Website/Content: Blogs, courses, communities, info products, templates";
+          case "niche": return "- General niche: Any business model that fits the opportunity";
+          default: return "";
+        }
+      }).join("\n")}`
+    : "";
+
+  const prompt = `You are analyzing user complaints and discussions about "${niche}" to identify pain points and product opportunities.${typeContext}
 
 Here is scraped content from Reddit, Quora, Hacker News, Product Hunt, review sites, and forums:
 
@@ -648,9 +723,16 @@ export const run = action({
     queryId: v.id("queries"),
     niche: v.string(),
     sourceUrl: v.optional(v.string()),
+    researchTypes: v.optional(v.array(v.union(
+      v.literal("saas"),
+      v.literal("ecommerce"),
+      v.literal("directory"),
+      v.literal("website"),
+      v.literal("niche"),
+    ))),
   },
   handler: async (ctx, args) => {
-    const { queryId, niche, sourceUrl } = args;
+    const { queryId, niche, sourceUrl, researchTypes } = args;
 
     try {
       let cleanedContent: CleanedContent[];
@@ -678,7 +760,7 @@ export const run = action({
           status: "scraping",
         });
 
-        const scrapedUrls = await scrapeWithBrightData(niche);
+        const scrapedUrls = await scrapeWithBrightData(niche, researchTypes ?? undefined);
 
         if (scrapedUrls.length === 0) {
           await ctx.runMutation(internal.queries.internalUpdateStatus, {
@@ -706,7 +788,7 @@ export const run = action({
       }
 
       // Step 3: AI Analysis
-      const painPoints = await analyzeWithAI(niche, cleanedContent);
+      const painPoints = await analyzeWithAI(niche, cleanedContent, researchTypes ?? undefined);
 
       // Step 4: Search Volume (BrightData or SerpAPI)
       await ctx.runMutation(internal.queries.internalUpdateStatus, {

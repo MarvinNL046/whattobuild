@@ -17,7 +17,17 @@ export const create = mutation({
 
 // Atomic: check credits + deduct + create query in single transaction
 export const startResearch = mutation({
-  args: { niche: v.string(), sourceUrl: v.optional(v.string()) },
+  args: {
+    niche: v.string(),
+    sourceUrl: v.optional(v.string()),
+    researchTypes: v.optional(v.array(v.union(
+      v.literal("saas"),
+      v.literal("ecommerce"),
+      v.literal("directory"),
+      v.literal("website"),
+      v.literal("niche"),
+    ))),
+  },
   handler: async (ctx, args) => {
     const user = await ensureUser(ctx);
 
@@ -40,6 +50,7 @@ export const startResearch = mutation({
       userId: user._id,
       niche: args.niche,
       sourceUrl: args.sourceUrl,
+      researchTypes: args.researchTypes,
       status: "pending",
       creditsUsed: 1,
       createdAt: Date.now(),
