@@ -84,6 +84,13 @@ export const updatePainPoints = internalMutation({
           type: v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content")),
           difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
           monetization: v.string(),
+          suppliers: v.optional(v.array(v.object({
+            platform: v.union(v.literal("aliexpress"), v.literal("alibaba"), v.literal("1688")),
+            productName: v.string(),
+            productUrl: v.string(),
+            priceHint: v.optional(v.string()),
+            description: v.optional(v.string()),
+          }))),
         }))),
         competitors: v.optional(v.array(v.object({
           name: v.string(),
@@ -132,6 +139,13 @@ export const save = internalMutation({
           type: v.union(v.literal("saas"), v.literal("ecommerce"), v.literal("service"), v.literal("content")),
           difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
           monetization: v.string(),
+          suppliers: v.optional(v.array(v.object({
+            platform: v.union(v.literal("aliexpress"), v.literal("alibaba"), v.literal("1688")),
+            productName: v.string(),
+            productUrl: v.string(),
+            priceHint: v.optional(v.string()),
+            description: v.optional(v.string()),
+          }))),
         }))),
         competitors: v.optional(v.array(v.object({
           name: v.string(),

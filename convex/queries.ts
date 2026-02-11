@@ -67,6 +67,7 @@ export const updateStatus = mutation({
       v.literal("scraping"),
       v.literal("analyzing"),
       v.literal("fetching_volume"),
+      v.literal("matching_suppliers"),
       v.literal("done"),
       v.literal("failed")
     ),
@@ -85,6 +86,7 @@ export const internalUpdateStatus = internalMutation({
       v.literal("scraping"),
       v.literal("analyzing"),
       v.literal("fetching_volume"),
+      v.literal("matching_suppliers"),
       v.literal("done"),
       v.literal("failed")
     ),

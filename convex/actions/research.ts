@@ -20,12 +20,21 @@ interface CleanedContent {
   source: string;
 }
 
+interface Supplier {
+  platform: "aliexpress" | "alibaba" | "1688";
+  productName: string;
+  productUrl: string;
+  priceHint?: string;
+  description?: string;
+}
+
 interface Solution {
   title: string;
   description: string;
   type: "saas" | "ecommerce" | "service" | "content";
   difficulty: "easy" | "medium" | "hard";
   monetization: string;
+  suppliers?: Supplier[];
 }
 
 interface Competitor {
@@ -889,6 +898,79 @@ Return up to 5 competitors. If no relevant competitors exist, return an empty ar
   return [...enriched, ...painPoints.slice(3)];
 }
 
+// --- Supplier Matching (AliExpress, Alibaba, 1688) ---
+
+function extractPriceHint(text: string): string | undefined {
+  const usdMatch = text.match(/US\s*\$[\d.,]+/i);
+  if (usdMatch) return usdMatch[0];
+  const cnyMatch = text.match(/[￥¥][\d.,]+/);
+  if (cnyMatch) return cnyMatch[0];
+  const dollarMatch = text.match(/\$[\d.,]+/);
+  if (dollarMatch) return dollarMatch[0];
+  return undefined;
+}
+
+async function findSuppliers(
+  niche: string,
+  painPoints: PainPoint[],
+): Promise<PainPoint[]> {
+  const top3 = painPoints.slice(0, 3);
+
+  const platforms = [
+    { site: "aliexpress.com", platform: "aliexpress" as const },
+    { site: "alibaba.com", platform: "alibaba" as const },
+    { site: "1688.com", platform: "1688" as const },
+  ];
+
+  const enrichedTop3 = await Promise.all(
+    top3.map(async (pp) => {
+      if (!pp.solutions || pp.solutions.length === 0) return pp;
+
+      const enrichedSolutions = await Promise.all(
+        pp.solutions.map(async (solution) => {
+          // Only match suppliers for ecommerce-type solutions
+          if (solution.type !== "ecommerce") return solution;
+
+          const keywords = solution.title.replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+          const suppliers: Supplier[] = [];
+
+          const serpResults = await Promise.allSettled(
+            platforms.map(async ({ site, platform }) => {
+              try {
+                const query = `site:${site} ${keywords} ${niche}`;
+                const serp = await searchGoogle(query, 5);
+                const organic = serp.organic ?? [];
+
+                return organic.slice(0, 3).map((r) => ({
+                  platform,
+                  productName: r.title,
+                  productUrl: r.link,
+                  priceHint: extractPriceHint(`${r.title} ${r.description ?? ""}`),
+                  description: r.description?.slice(0, 200) || undefined,
+                }));
+              } catch {
+                return [];
+              }
+            }),
+          );
+
+          for (const result of serpResults) {
+            if (result.status === "fulfilled") {
+              suppliers.push(...result.value);
+            }
+          }
+
+          return { ...solution, suppliers: suppliers.length > 0 ? suppliers : undefined };
+        }),
+      );
+
+      return { ...pp, solutions: enrichedSolutions };
+    }),
+  );
+
+  return [...enrichedTop3, ...painPoints.slice(3)];
+}
+
 // --- Ad Library Links ---
 
 function generateAdLibraryLinks(niche: string) {
@@ -996,13 +1078,26 @@ export const run = action({
       // Step 5b: Find competitors for top 3 pain points
       const enrichedPainPoints = await findCompetitors(niche, scoredPainPoints);
 
+      // Step 5c: Find suppliers for ecommerce solutions (top 3 pain points)
+      const hasEcommerce = enrichedPainPoints.slice(0, 3).some(
+        (pp) => pp.solutions?.some((s) => s.type === "ecommerce"),
+      );
+      let finalPainPoints = enrichedPainPoints;
+      if (hasEcommerce) {
+        await ctx.runMutation(internal.queries.internalUpdateStatus, {
+          queryId,
+          status: "matching_suppliers",
+        });
+        finalPainPoints = await findSuppliers(niche, enrichedPainPoints);
+      }
+
       // Step 6: Generate ad library links
       const adLinks = generateAdLibraryLinks(niche);
 
       // Step 7: Save results
       await ctx.runMutation(internal.results.save, {
         queryId,
-        painPoints: enrichedPainPoints,
+        painPoints: finalPainPoints,
         searchVolume: searchVolume.length > 0 ? searchVolume : undefined,
         adLinks,
       });

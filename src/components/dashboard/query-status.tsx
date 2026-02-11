@@ -10,6 +10,7 @@ const STATUS_CONFIG: Record<
   scraping: { label: "Scraping", variant: "outline" },
   analyzing: { label: "Analyzing", variant: "outline" },
   fetching_volume: { label: "Volume data", variant: "outline" },
+  matching_suppliers: { label: "Finding suppliers", variant: "outline" },
   done: { label: "Done", variant: "default" },
   failed: { label: "Failed", variant: "destructive" },
 };

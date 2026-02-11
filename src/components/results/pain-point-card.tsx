@@ -7,7 +7,15 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, DollarSign, FileText, Globe, Lightbulb, MessageSquareQuote, ShieldCheck, Star, Target, TrendingUp } from "lucide-react";
+import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, DollarSign, FileText, Globe, Lightbulb, MessageSquareQuote, Package, ShieldCheck, Star, Target, TrendingUp } from "lucide-react";
+
+interface Supplier {
+  platform: "aliexpress" | "alibaba" | "1688";
+  productName: string;
+  productUrl: string;
+  priceHint?: string;
+  description?: string;
+}
 
 interface Solution {
   title: string;
@@ -15,6 +23,7 @@ interface Solution {
   type: "saas" | "ecommerce" | "service" | "content";
   difficulty: "easy" | "medium" | "hard";
   monetization: string;
+  suppliers?: Supplier[];
 }
 
 interface Competitor {
@@ -58,6 +67,18 @@ const TYPE_LABELS: Record<string, string> = {
   ecommerce: "E-commerce",
   service: "Service",
   content: "Content",
+};
+
+const PLATFORM_STYLES: Record<string, string> = {
+  aliexpress: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+  alibaba: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  "1688": "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+};
+
+const PLATFORM_LABELS: Record<string, string> = {
+  aliexpress: "AliExpress",
+  alibaba: "Alibaba",
+  "1688": "1688",
 };
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -224,6 +245,37 @@ export function PainPointCard({
                     <p className="text-[10px] text-muted-foreground">
                       {solution.monetization}
                     </p>
+                    {solution.suppliers && solution.suppliers.length > 0 && (
+                      <div className="border-t pt-2 mt-1 space-y-1.5">
+                        <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                          <Package className="size-2.5" />
+                          Suppliers
+                        </p>
+                        {solution.suppliers.map((supplier, si) => (
+                          <div key={si} className="flex items-start gap-1.5">
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] shrink-0 px-1 py-0 ${PLATFORM_STYLES[supplier.platform]}`}
+                            >
+                              {PLATFORM_LABELS[supplier.platform]}
+                            </Badge>
+                            <a
+                              href={supplier.productUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-primary underline underline-offset-2 hover:no-underline line-clamp-1 leading-snug"
+                            >
+                              {supplier.productName}
+                            </a>
+                            {supplier.priceHint && (
+                              <span className="text-[9px] text-muted-foreground shrink-0">
+                                {supplier.priceHint}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
