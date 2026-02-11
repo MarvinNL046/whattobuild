@@ -3,8 +3,13 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+const ClerkUserButton = hasClerk
+  ? dynamic(() => import("@clerk/nextjs").then((mod) => ({ default: () => <mod.UserButton afterSignOutUrl="/" /> })), { ssr: false })
+  : null;
 
 export function DashboardHeader() {
   const credits = useQuery(api.credits.getBalance);
@@ -27,7 +32,7 @@ export function DashboardHeader() {
             <CreditIcon />
             <span>{credits ?? "..."}</span>
           </div>
-          {hasClerk ? <ClerkUserButton /> : (
+          {ClerkUserButton ? <ClerkUserButton /> : (
             <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
               Home
             </Link>
@@ -36,11 +41,6 @@ export function DashboardHeader() {
       </div>
     </header>
   );
-}
-
-function ClerkUserButton() {
-  const { UserButton } = require("@clerk/nextjs");
-  return <UserButton afterSignOutUrl="/" />;
 }
 
 function CreditIcon() {

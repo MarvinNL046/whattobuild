@@ -42,5 +42,5 @@ export default function RootLayout({
     return body;
   }
 
-  return <ClerkProvider>{body}</ClerkProvider>;
+  return <ClerkProvider dynamic>{body}</ClerkProvider>;
 }
