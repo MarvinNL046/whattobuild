@@ -1,11 +1,20 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const hasClerkKeys = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/workspace(.*)',
+  '/results(.*)',
+  '/api/stripe/checkout(.*)',
+])
+
 export default hasClerkKeys
-  ? clerkMiddleware()
+  ? clerkMiddleware(async (auth, req) => {
+      if (isProtectedRoute(req)) await auth.protect()
+    })
   : function noopProxy(_req: NextRequest) {
       return NextResponse.next()
     }
