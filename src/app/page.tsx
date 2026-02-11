@@ -10,22 +10,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Search, Zap, BarChart3, Check } from "lucide-react";
+import { LandingAuth, LandingHeroAuth } from "@/components/landing-auth";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-// Dynamically import Clerk components only when keys are present
-const ClerkComponents = hasClerk
-  ? require("@clerk/nextjs")
-  : {
-      SignInButton: ({ children }: { children: React.ReactNode }) => children,
-      SignUpButton: ({ children }: { children: React.ReactNode }) => children,
-      SignedIn: ({ children }: { children: React.ReactNode }) => children,
-      SignedOut: ({ children }: { children: React.ReactNode }) => children,
-      UserButton: () => null,
-    };
-
-const { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } =
-  ClerkComponents;
 
 const PRICING = [
   { name: "Starter", credits: 10, price: 9, popular: false },
@@ -65,22 +52,7 @@ export default function Home() {
           </span>
           <div className="flex items-center gap-3">
             {hasClerk ? (
-              <>
-                <SignedOut>
-                  <SignInButton>
-                    <Button variant="ghost" size="sm">Sign in</Button>
-                  </SignInButton>
-                  <SignUpButton>
-                    <Button size="sm">Get started</Button>
-                  </SignUpButton>
-                </SignedOut>
-                <SignedIn>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href="/dashboard">Dashboard</Link>
-                  </Button>
-                  <UserButton />
-                </SignedIn>
-              </>
+              <LandingAuth />
             ) : (
               <Button size="sm" asChild>
                 <Link href="/dashboard">Dashboard</Link>
@@ -106,18 +78,7 @@ export default function Home() {
         </p>
         <div className="mt-8 flex gap-3">
           {hasClerk ? (
-            <>
-              <SignedOut>
-                <SignUpButton>
-                  <Button size="lg">Start for free</Button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <Button size="lg" asChild>
-                  <Link href="/dashboard">Go to dashboard</Link>
-                </Button>
-              </SignedIn>
-            </>
+            <LandingHeroAuth />
           ) : (
             <Button size="lg" asChild>
               <Link href="/dashboard">Start for free</Link>
