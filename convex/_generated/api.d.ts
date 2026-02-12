@@ -8,10 +8,14 @@
  * @module
  */
 
+import type * as actions_email from "../actions/email.js";
+import type * as actions_monitoring from "../actions/monitoring.js";
 import type * as actions_regenerate from "../actions/regenerate.js";
 import type * as actions_research from "../actions/research.js";
 import type * as credits from "../credits.js";
+import type * as crons from "../crons.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as monitoredNiches from "../monitoredNiches.js";
 import type * as queries from "../queries.js";
 import type * as results from "../results.js";
 import type * as savedIdeas from "../savedIdeas.js";
@@ -24,10 +28,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "actions/email": typeof actions_email;
+  "actions/monitoring": typeof actions_monitoring;
   "actions/regenerate": typeof actions_regenerate;
   "actions/research": typeof actions_research;
   credits: typeof credits;
+  crons: typeof crons;
   "lib/auth": typeof lib_auth;
+  monitoredNiches: typeof monitoredNiches;
   queries: typeof queries;
   results: typeof results;
   savedIdeas: typeof savedIdeas;

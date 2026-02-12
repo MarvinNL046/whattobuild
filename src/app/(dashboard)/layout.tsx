@@ -1,16 +1,25 @@
-import { DashboardHeader } from "@/components/dashboard/header";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useState } from "react";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { Sidebar } from "@/components/dashboard/sidebar";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader />
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">{children}</main>
+    <div className="flex h-dvh flex-col bg-background">
+      <DashboardHeader onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex flex-1 flex-col overflow-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

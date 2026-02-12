@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -11,9 +11,9 @@ export function LandingAuth() {
         <SignInButton>
           <Button variant="ghost" size="sm">Sign in</Button>
         </SignInButton>
-        <SignUpButton>
+        <SignInButton>
           <Button size="sm">Get started</Button>
-        </SignUpButton>
+        </SignInButton>
       </SignedOut>
       <SignedIn>
         <Button variant="ghost" size="sm" asChild>
@@ -29,9 +29,9 @@ export function LandingHeroAuth() {
   return (
     <>
       <SignedOut>
-        <SignUpButton>
+        <SignInButton>
           <Button size="lg">Start for free</Button>
-        </SignUpButton>
+        </SignInButton>
       </SignedOut>
       <SignedIn>
         <Button size="lg" asChild>

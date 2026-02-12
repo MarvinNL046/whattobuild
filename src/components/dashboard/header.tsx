@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Menu } from "lucide-react";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -11,23 +12,29 @@ const ClerkUserButton = hasClerk
   ? dynamic(() => import("@clerk/nextjs").then((mod) => ({ default: () => <mod.UserButton afterSignOutUrl="/" /> })), { ssr: false })
   : null;
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  onToggleSidebar?: () => void;
+}
+
+export function DashboardHeader({ onToggleSidebar }: DashboardHeaderProps) {
   const credits = useQuery(api.credits.getBalance);
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6">
-        <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
-          WhatToBuild
-        </Link>
+      <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleSidebar}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
+          >
+            <Menu className="size-5" />
+          </button>
+          <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+            WhatToBuild
+          </Link>
+        </div>
 
         <div className="flex items-center gap-4">
-          <Link
-            href="/workspace"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Workspace
-          </Link>
           <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm font-medium">
             <CreditIcon />
             <span>{credits ?? "..."}</span>

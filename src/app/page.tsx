@@ -25,7 +25,7 @@ const STEPS = [
     icon: Search,
     title: "Enter a niche",
     description:
-      "Type any market or product category. We scrape Reddit, Trustpilot, and Amazon for real complaints.",
+      "Type any market or product category. We search thousands of real conversations across the web that other tools miss.",
   },
   {
     icon: Zap,
@@ -73,8 +73,7 @@ export default function Home() {
           <span className="text-muted-foreground">Build what people need.</span>
         </h1>
         <p className="mt-4 max-w-lg text-base text-muted-foreground sm:text-lg">
-          Discover real pain points from Reddit, reviews, and forums. Validated
-          with search volume and competition data. One search, real answers.
+          We go deeper than ChatGPT or any other AI tool. Real pain points from real people, validated with search volume and competition data. One search, real answers.
         </p>
         <div className="mt-8 flex gap-3">
           {hasClerk ? (

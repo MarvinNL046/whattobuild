@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "WhatToBuild - Discover Real Pain Points & Product Opportunities",
   description:
-    "Find validated product ideas by analyzing real customer complaints from Reddit, reviews, and forums. Powered by AI.",
+    "Find validated product ideas by analyzing thousands of real conversations across the web. Deeper research than any AI chatbot. Powered by AI.",
 };
 
 const hasClerkKeys = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;

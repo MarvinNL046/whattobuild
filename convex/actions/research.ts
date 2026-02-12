@@ -1,8 +1,10 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 
 // --- Types ---
 
@@ -120,21 +122,26 @@ function detectSource(url: string): ScrapedUrl["source"] {
   if (url.includes("quora.com")) return "quora";
   if (url.includes("news.ycombinator.com") || url.includes("hacker-news")) return "hackernews";
   if (url.includes("producthunt.com")) return "producthunt";
+  if (url.includes("medium.com")) return "forum";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "forum";
+  if (url.includes("indiehackers.com")) return "forum";
+  if (url.includes("twitter.com") || url.includes("x.com")) return "forum";
   return "forum";
 }
 
 type ResearchType = "saas" | "ecommerce" | "directory" | "website";
 
 // Build search queries based on selected research types
-// Balanced across sources: Reddit, Quora, HN, Product Hunt, review sites, forums
+// Diverse across sources: Reddit, Quora, HN, Product Hunt, Medium, YouTube, blogs, forums
 function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
   const queries: string[] = [];
 
-  // Base queries — balanced across sources
+  // Base queries — spread across many platforms (max 1 Reddit in base)
   queries.push(
     `site:reddit.com "${niche}" complaints OR problems OR frustrated`,
     `"${niche}" problems OR issues site:quora.com`,
-    `"${niche}" complaints OR problems OR "bad experience" -site:reddit.com -site:quora.com`,
+    `"${niche}" problems OR challenges OR struggles site:medium.com`,
+    `"${niche}" complaints OR problems OR "bad experience" -site:reddit.com -site:quora.com -site:medium.com`,
   );
 
   // If no specific types selected, add broad exploration queries
@@ -144,7 +151,9 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
       `"${niche}" review OR complaint site:amazon.com`,
       `"${niche}" site:news.ycombinator.com`,
       `"${niche}" problems OR complaints site:producthunt.com`,
-      `"${niche}" frustrating OR annoying OR "wish there was" site:quora.com`,
+      `"${niche}" frustrating OR annoying site:youtube.com`,
+      `"${niche}" honest review OR problems site:medium.com`,
+      `"${niche}" "wish there was" OR "someone should build" forum`,
     );
   }
 
@@ -152,12 +161,13 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
     switch (type) {
       case "saas":
         queries.push(
-          `"${niche}" software alternatives OR "better than" site:reddit.com`,
+          `"${niche}" software review site:g2.com OR site:capterra.com`,
           `"${niche}" site:producthunt.com`,
           `"${niche}" SaaS OR tool OR platform site:news.ycombinator.com`,
-          `"${niche}" software review site:g2.com OR site:capterra.com`,
           `"${niche}" SaaS problems OR "wish it could" site:quora.com`,
+          `"${niche}" honest review OR alternatives site:medium.com`,
           `"${niche}" software OR tool review OR complaint site:trustpilot.com`,
+          `"${niche}" alternatives OR "better than" site:indiehackers.com OR site:dev.to`,
         );
         break;
       case "ecommerce":
@@ -166,8 +176,9 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
           `site:trustpilot.com "${niche}" review`,
           `"${niche}" product quality OR defective OR "broke after" site:amazon.com`,
           `"${niche}" dropshipping OR supplier OR wholesale site:quora.com`,
-          `"${niche}" product review OR unboxing OR comparison -site:reddit.com -site:amazon.com`,
-          `"${niche}" "not worth" OR "waste of money" OR "returned" site:reddit.com`,
+          `"${niche}" product review OR unboxing OR honest review site:youtube.com`,
+          `"${niche}" product review OR comparison -site:reddit.com -site:amazon.com`,
+          `"${niche}" "not worth" OR "waste of money" OR "returned" -site:reddit.com`,
         );
         break;
       case "directory":
@@ -176,16 +187,18 @@ function buildSearchQueries(niche: string, types: ResearchType[]): string[] {
           `"${niche}" directory OR comparison OR aggregator site:producthunt.com`,
           `"${niche}" marketplace OR listing OR "best list" site:quora.com`,
           `"${niche}" directory OR catalog OR comparison site:news.ycombinator.com`,
-          `"${niche}" "there should be" OR "someone should build" site:reddit.com`,
+          `"${niche}" curated list OR directory site:medium.com`,
+          `"${niche}" "there should be" OR "someone should build" forum OR community`,
         );
         break;
       case "website":
         queries.push(
           `"${niche}" guide OR tutorial OR course problems site:quora.com`,
           `"${niche}" blog OR content OR resource "hard to find"`,
-          `"${niche}" online course OR tutorial review site:trustpilot.com`,
+          `"${niche}" honest review OR tutorial review site:medium.com`,
           `"${niche}" learning OR education site:news.ycombinator.com`,
-          `"${niche}" information OR advice OR tips site:reddit.com`,
+          `"${niche}" course OR tutorial review site:trustpilot.com`,
+          `"${niche}" guide OR tips site:youtube.com`,
         );
         break;
     }
@@ -541,7 +554,7 @@ async function analyzeWithAI(
 
   const prompt = `You are analyzing user complaints and discussions about "${niche}" to identify pain points and product opportunities.${typeContext}
 
-Here is scraped content from Reddit, Quora, Hacker News, Product Hunt, review sites, and forums:
+Here is scraped content from multiple platforms including Reddit, Quora, Medium, YouTube, Hacker News, Product Hunt, Trustpilot, G2, and other forums and review sites:
 
 ${contentSummary}
 
@@ -552,7 +565,7 @@ Analyze this content and identify the top pain points. For each pain point:
 4. Rate your confidence (0-100) in this pain point being a real, validated problem. Base this on: number of independent sources mentioning it, specificity of complaints, and consistency across sources. 90+ = mentioned in many sources with specific details. 50-89 = mentioned in a few sources or with less detail. Below 50 = inferred or only vaguely mentioned.
 5. Count evidenceCount: the number of distinct sources (URLs/threads) from the scraped content that mention or support this pain point.
 6. Classify sentiment: "negative", "neutral", or "mixed"
-7. Extract 2-3 direct quotes from the content that illustrate the pain point
+7. Extract 2-3 direct quotes from the content that illustrate the pain point. IMPORTANT: For the "source" field in quotes, use the actual hostname from the URL (e.g. "quora.com", "medium.com", "youtube.com", "g2.com", "trustpilot.com") — NOT just "reddit.com" for everything. Use diverse sources when available.
 8. List relevant keywords for search volume research
 9. Suggest 2-3 concrete product solutions that directly address this pain point. For each solution:
    - Give it a creative, brandable product name
@@ -985,6 +998,130 @@ function generateAdLibraryLinks(niche: string) {
   };
 }
 
+// --- Shared Research Pipeline ---
+
+async function runResearchPipeline(
+  ctx: ActionCtx,
+  args: {
+    queryId: Id<"queries">;
+    niche: string;
+    sourceUrl?: string;
+    researchTypes?: ResearchType[];
+  },
+): Promise<{ success: boolean; error?: string }> {
+  const { niche, sourceUrl, researchTypes } = args;
+  const typedQueryId = args.queryId;
+
+  try {
+    let cleanedContent: CleanedContent[];
+
+    if (sourceUrl) {
+      await ctx.runMutation(internal.queries.internalUpdateStatus, {
+        queryId: typedQueryId,
+        status: "analyzing",
+      });
+
+      const extracted = await extractContent([sourceUrl]);
+      if (extracted.length === 0) {
+        await ctx.runMutation(internal.queries.internalUpdateStatus, {
+          queryId: typedQueryId,
+          status: "failed",
+        });
+        return { success: false, error: "Failed to extract content from URL" };
+      }
+      cleanedContent = extracted;
+    } else {
+      await ctx.runMutation(internal.queries.internalUpdateStatus, {
+        queryId: typedQueryId,
+        status: "scraping",
+      });
+
+      const scrapedUrls = await scrapeWithBrightData(niche, researchTypes ?? undefined);
+
+      if (scrapedUrls.length === 0) {
+        await ctx.runMutation(internal.queries.internalUpdateStatus, {
+          queryId: typedQueryId,
+          status: "failed",
+        });
+        return { success: false, error: "No results found for this niche" };
+      }
+
+      await ctx.runMutation(internal.queries.internalUpdateStatus, {
+        queryId: typedQueryId,
+        status: "analyzing",
+      });
+
+      const urls = scrapedUrls.map((s) => s.url);
+      cleanedContent = await extractContent(urls);
+
+      if (cleanedContent.length === 0) {
+        await ctx.runMutation(internal.queries.internalUpdateStatus, {
+          queryId: typedQueryId,
+          status: "failed",
+        });
+        return { success: false, error: "Failed to extract content" };
+      }
+    }
+
+    const painPoints = await analyzeWithAI(niche, cleanedContent, researchTypes ?? undefined);
+
+    await ctx.runMutation(internal.queries.internalUpdateStatus, {
+      queryId: typedQueryId,
+      status: "fetching_volume",
+    });
+
+    const allKeywords = [
+      ...new Set(painPoints.flatMap((pp) => pp.keywords)),
+    ];
+    const searchVolume = await getSearchVolume(allKeywords);
+
+    const scoredPainPoints = calculateOpportunityScores(painPoints, searchVolume);
+    scoredPainPoints.sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
+
+    const enrichedPainPoints = await findCompetitors(niche, scoredPainPoints);
+
+    const hasEcommerce = enrichedPainPoints.slice(0, 3).some(
+      (pp) => pp.solutions?.some((s) => s.type === "ecommerce"),
+    );
+    let finalPainPoints = enrichedPainPoints;
+    if (hasEcommerce) {
+      await ctx.runMutation(internal.queries.internalUpdateStatus, {
+        queryId: typedQueryId,
+        status: "matching_suppliers",
+      });
+      finalPainPoints = await findSuppliers(niche, enrichedPainPoints);
+    }
+
+    const adLinks = generateAdLibraryLinks(niche);
+
+    await ctx.runMutation(internal.results.save, {
+      queryId: typedQueryId,
+      painPoints: finalPainPoints,
+      searchVolume: searchVolume.length > 0 ? searchVolume : undefined,
+      adLinks,
+    });
+
+    await ctx.runMutation(internal.queries.chargeCredit, { queryId: typedQueryId });
+
+    await ctx.runMutation(internal.queries.internalUpdateStatus, {
+      queryId: typedQueryId,
+      status: "done",
+    });
+
+    return { success: true };
+  } catch (error) {
+    await ctx.runMutation(internal.queries.internalUpdateStatus, {
+      queryId: typedQueryId,
+      status: "failed",
+    });
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 // --- Main Research Action ---
 
 export const run = action({
@@ -1000,125 +1137,34 @@ export const run = action({
     ))),
   },
   handler: async (ctx, args) => {
-    const { queryId, niche, sourceUrl, researchTypes } = args;
+    return runResearchPipeline(ctx, {
+      queryId: args.queryId,
+      niche: args.niche,
+      sourceUrl: args.sourceUrl ?? undefined,
+      researchTypes: (args.researchTypes ?? undefined) as ResearchType[] | undefined,
+    });
+  },
+});
 
-    try {
-      let cleanedContent: CleanedContent[];
-
-      if (sourceUrl) {
-        // Direct URL mode: skip SERP, extract content directly from the URL
-        await ctx.runMutation(internal.queries.internalUpdateStatus, {
-          queryId,
-          status: "analyzing",
-        });
-
-        const extracted = await extractContent([sourceUrl]);
-        if (extracted.length === 0) {
-          await ctx.runMutation(internal.queries.internalUpdateStatus, {
-            queryId,
-            status: "failed",
-          });
-          return { success: false, error: "Failed to extract content from URL" };
-        }
-        cleanedContent = extracted;
-      } else {
-        // Standard mode: scrape Google SERP first
-        await ctx.runMutation(internal.queries.internalUpdateStatus, {
-          queryId,
-          status: "scraping",
-        });
-
-        const scrapedUrls = await scrapeWithBrightData(niche, researchTypes ?? undefined);
-
-        if (scrapedUrls.length === 0) {
-          await ctx.runMutation(internal.queries.internalUpdateStatus, {
-            queryId,
-            status: "failed",
-          });
-          return { success: false, error: "No results found for this niche" };
-        }
-
-        await ctx.runMutation(internal.queries.internalUpdateStatus, {
-          queryId,
-          status: "analyzing",
-        });
-
-        const urls = scrapedUrls.map((s) => s.url);
-        cleanedContent = await extractContent(urls);
-
-        if (cleanedContent.length === 0) {
-          await ctx.runMutation(internal.queries.internalUpdateStatus, {
-            queryId,
-            status: "failed",
-          });
-          return { success: false, error: "Failed to extract content" };
-        }
-      }
-
-      // Step 3: AI Analysis
-      const painPoints = await analyzeWithAI(niche, cleanedContent, researchTypes ?? undefined);
-
-      // Step 4: Search Volume (BrightData or SerpAPI)
-      await ctx.runMutation(internal.queries.internalUpdateStatus, {
-        queryId,
-        status: "fetching_volume",
-      });
-
-      const allKeywords = [
-        ...new Set(painPoints.flatMap((pp) => pp.keywords)),
-      ];
-      const searchVolume = await getSearchVolume(allKeywords);
-
-      // Step 5: Calculate opportunity scores
-      const scoredPainPoints = calculateOpportunityScores(painPoints, searchVolume);
-
-      // Sort by opportunity score (highest first)
-      scoredPainPoints.sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
-
-      // Step 5b: Find competitors for top 3 pain points
-      const enrichedPainPoints = await findCompetitors(niche, scoredPainPoints);
-
-      // Step 5c: Find suppliers for ecommerce solutions (top 3 pain points)
-      const hasEcommerce = enrichedPainPoints.slice(0, 3).some(
-        (pp) => pp.solutions?.some((s) => s.type === "ecommerce"),
-      );
-      let finalPainPoints = enrichedPainPoints;
-      if (hasEcommerce) {
-        await ctx.runMutation(internal.queries.internalUpdateStatus, {
-          queryId,
-          status: "matching_suppliers",
-        });
-        finalPainPoints = await findSuppliers(niche, enrichedPainPoints);
-      }
-
-      // Step 6: Generate ad library links
-      const adLinks = generateAdLibraryLinks(niche);
-
-      // Step 7: Save results
-      await ctx.runMutation(internal.results.save, {
-        queryId,
-        painPoints: finalPainPoints,
-        searchVolume: searchVolume.length > 0 ? searchVolume : undefined,
-        adLinks,
-      });
-
-      // Step 7: Mark as done
-      await ctx.runMutation(internal.queries.internalUpdateStatus, {
-        queryId,
-        status: "done",
-      });
-
-      return { success: true };
-    } catch (error) {
-      await ctx.runMutation(internal.queries.internalUpdateStatus, {
-        queryId,
-        status: "failed",
-      });
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
+// Internal version for cron/monitoring (no auth required)
+export const internalRun = internalAction({
+  args: {
+    queryId: v.id("queries"),
+    niche: v.string(),
+    sourceUrl: v.optional(v.string()),
+    researchTypes: v.optional(v.array(v.union(
+      v.literal("saas"),
+      v.literal("ecommerce"),
+      v.literal("directory"),
+      v.literal("website"),
+    ))),
+  },
+  handler: async (ctx, args) => {
+    return runResearchPipeline(ctx, {
+      queryId: args.queryId,
+      niche: args.niche,
+      sourceUrl: args.sourceUrl ?? undefined,
+      researchTypes: (args.researchTypes ?? undefined) as ResearchType[] | undefined,
+    });
   },
 });

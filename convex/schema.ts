@@ -121,6 +121,25 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_status", ["userId", "status"]),
 
+  monitoredNiches: defineTable({
+    userId: v.id("users"),
+    niche: v.string(),
+    sourceUrl: v.optional(v.string()),
+    researchTypes: v.optional(v.array(v.union(
+      v.literal("saas"),
+      v.literal("ecommerce"),
+      v.literal("directory"),
+      v.literal("website"),
+    ))),
+    status: v.union(v.literal("active"), v.literal("paused")),
+    lastRunAt: v.optional(v.number()),
+    lastQueryId: v.optional(v.id("queries")),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_user_status", ["userId", "status"]),
+
   transactions: defineTable({
     userId: v.id("users"),
     credits: v.number(),

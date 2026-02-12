@@ -5,6 +5,7 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexProvider } from "convex/react";
 import { useAuth } from "@clerk/nextjs";
+import { UserSync } from "./user-sync";
 
 if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
   throw new Error("Missing NEXT_PUBLIC_CONVEX_URL in your .env.local file");
@@ -26,6 +27,7 @@ export default function ConvexClientProvider({
 
   return (
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+      <UserSync />
       {children}
     </ConvexProviderWithClerk>
   );

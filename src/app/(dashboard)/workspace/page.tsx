@@ -61,19 +61,21 @@ export default function WorkspacePage() {
 
   if (ideas === undefined) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild className="shrink-0">
-            <Link href="/dashboard">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Workspace</h1>
-        </div>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
-          ))}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" asChild className="shrink-0">
+              <Link href="/dashboard">
+                <ArrowLeft className="size-4" />
+              </Link>
+            </Button>
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Workspace</h1>
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -88,7 +90,8 @@ export default function WorkspacePage() {
   const totalActive = ideas.filter((i) => i.status !== "archived").length;
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0">
@@ -151,6 +154,7 @@ export default function WorkspacePage() {
           );
         })
       )}
+      </div>
     </div>
   );
 }
