@@ -185,6 +185,20 @@ export default function Home() {
       <footer className="border-t px-4 py-6">
         <div className="mx-auto flex max-w-5xl items-center justify-between text-xs text-muted-foreground">
           <span>&copy; {new Date().getFullYear()} WhatToBuild</span>
+          <nav className="flex gap-4">
+            <Link href="/about" className="hover:text-foreground">
+              About
+            </Link>
+            <Link href="/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+            <Link href="/privacy-policy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/contact" className="hover:text-foreground">
+              Contact
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
